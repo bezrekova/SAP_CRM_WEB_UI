@@ -1,0 +1,37 @@
+
+METHOD get_v_standardaddress.
+ DATA:
+      lv_fieldname            TYPE name_komp,
+      lt_fieldname_additional TYPE crmt_attr_name_tab.
+
+  lv_fieldname = 'STANDARDADDRESS'.                            "#EC NOTEXT
+  INSERT lv_fieldname INTO TABLE lt_fieldname_additional.
+
+CALL METHOD cl_crm_uiu_bp_cust_get=>get_vhelp_for_field
+    EXPORTING
+      iv_fieldname             = 'STANDARDADDRESS'                 "#EC NOTEXT
+      iv_fieldname_alternative = 'ADDRESS'                    "#EC NOTEXT
+      it_fieldname_additional  = lt_fieldname_additional
+    RECEIVING
+      rv_valuehelp_descriptor  = rv_valuehelp_descriptor
+    EXCEPTIONS
+      OTHERS                   = 0.
+
+*  DATA: ls_map    TYPE if_bsp_wd_valuehelp_f4descr=>gtype_param_mapping,
+*        lt_inmap  TYPE if_bsp_wd_valuehelp_f4descr=>gtype_param_mapping_tab,
+*        lt_outmap TYPE if_bsp_wd_valuehelp_f4descr=>gtype_param_mapping_tab.
+*
+*  ls_map-context_attr = 'STRUCT.E_MAILSMT'." This is the Field create via AET
+*  ls_map-f4_attr = 'KEY'.   " This the Field from the Search Help
+*
+*  APPEND ls_map TO: lt_inmap, lt_outmap.
+*
+*  CREATE OBJECT rv_valuehelp_descriptor TYPE cl_bsp_wd_valuehelp_f4descr
+*    EXPORTING
+*      iv_help_id        = 'CRM_MAIL_ADDRESS'
+*      iv_help_id_kind   = if_bsp_wd_valuehelp_f4descr=>help_id_kind_name
+*      iv_input_mapping  = lt_inmap
+*      iv_output_mapping = lt_outmap.
+
+
+ENDMETHOD.
