@@ -35,3 +35,87 @@ CALL METHOD cl_crm_uiu_bp_cust_get=>get_vhelp_for_field
 
 
 ENDMETHOD.
+
+*1) Contect node->attribute generate get_v method
+method GET_V_ZZ_OKED_CODE.
+  CREATE OBJECT rv_valuehelp_descriptor TYPE cl_bsp_wd_valuehelp_navdescr
+    EXPORTING
+      iv_outbound_plug = 'FIND_OKED'.
+endmethod.
+
+
+*ON EVENT
+method OP_FIND_OKED.
+
+
+    DATA: lv_title TYPE string.
+
+* Get title 'Search: Employees'
+    lv_title = cl_wd_utilities=>get_otr_text_by_alias( 'CRM_UIU_BP_HEAD/EMPLOYEE_SEARCH' ).
+
+    IF gr_oked_search_popup IS NOT BOUND.
+      gr_oked_search_popup = comp_controller->window_manager->create_popup(
+       iv_interface_view_name = 'ZOKED_SEARCH/MainWindow'
+       iv_usage_name = 'ZCU_OKED_SEARCH'
+       iv_title = lv_title ).
+    ENDIF.
+
+    gr_oked_search_popup->set_on_close_event( iv_view = me iv_event_name = 'SEL_OKED' ).
+    gr_oked_search_popup->set_display_mode( if_bsp_wd_popup=>c_display_mode_surrounded ).
+
+    gr_oked_search_popup->open( ).
+
+
+  endmethod.
+  
+  *Обработчик события
+   METHOD eh_onsel_oked.
+*Added by wizard: Handler for event 'SEL_OKED'
+    DATA: lv_col_wrapper   TYPE REF TO cl_bsp_wd_collection_wrapper,
+          lv_current       TYPE REF TO if_bol_bo_property_access,
+          lv_context_node  TYPE REF TO cl_bsp_wd_context_node,
+          lr_entity        TYPE REF TO cl_crm_bol_entity,
+          lv_outbound_plug TYPE seocmpname,
+          lv_value         TYPE string.
+    DATA: lv_index        TYPE int4,
+          lv_event_string TYPE string,
+          lv_entity       TYPE REF TO cl_crm_bol_entity.
+
+* Get Context Node of Search Window
+    TRY .
+        lv_context_node = gr_oked_search_popup->get_context_node( iv_cnode_name = 'SELECTCODE' ).
+        lv_col_wrapper = lv_context_node->collection_wrapper.
+        lv_current ?= lv_col_wrapper->get_current( ).
+      CATCH cx_root.
+
+    ENDTRY.
+
+
+    IF lv_current IS BOUND.
+* Check Outbound Plug
+      lv_outbound_plug = gr_oked_search_popup->get_fired_outbound_plug( ).
+      CHECK lv_outbound_plug = 'TOOVERVIEW'.
+
+
+
+      cl_chtmlb_config_utility=>outbound_plug_event_info( EXPORTING iv_event_string = lv_event_string
+                                                         IMPORTING ev_index        = lv_index ).
+
+
+*      lv_index = cl_crm_uiu_prod_tools=>get_tableindex_by_id( htmlb_event_ex->event_id ).
+      lr_entity ?=  me->typed_context->ztd_bp_oked->collection_wrapper->find( iv_index = lv_index ).
+
+
+      IF lr_entity IS BOUND.
+        TRY.
+            lr_entity->set_property_as_string(
+              EXPORTING
+                iv_attr_name           =  'ZZ_OKED_CODE'   " Component Name
+                iv_value               = lv_current->get_property_as_string( 'CODE' )
+            ).
+          CATCH cx_sy_conversion_error.    "
+        ENDTRY.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+  
