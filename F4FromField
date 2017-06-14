@@ -1,0 +1,52 @@
+  METHOD op_find_oked.
+* Added by wizard: Outbound plug 'FIND_OKED'
+
+    DATA: lv_title TYPE string.
+
+* Get title 'Search: Employees'
+    lv_title = cl_wd_utilities=>get_otr_text_by_alias( 'CRM_UIU_BP_HEAD/EMPLOYEE_SEARCH' ).
+
+    IF gr_oked_search_popup IS NOT BOUND.
+      gr_oked_search_popup = comp_controller->window_manager->create_popup(
+       iv_interface_view_name = 'ZOKED_SEARCH/MainWindow'
+       iv_usage_name = 'ZCU_OKED_Search'
+       iv_title = lv_title ).
+    ENDIF.
+
+    gr_oked_search_popup->set_on_close_event( iv_view = me iv_event_name = 'SEL_OKED' ).
+    gr_oked_search_popup->set_display_mode( if_bsp_wd_popup=>c_display_mode_surrounded ).
+
+    gr_oked_search_popup->open( ).
+  ENDMETHOD. 
+ *Обработка запросов
+ METHOD eh_onsel_oked.
+* Added by wizard: Handler for event 'SEL_OKED'
+    DATA: lv_col_wrapper   TYPE REF TO cl_bsp_wd_collection_wrapper,
+          lv_current       TYPE REF TO if_bol_bo_property_access,
+          lv_context_node  TYPE REF TO cl_bsp_wd_context_node,
+          lv_outbound_plug TYPE seocmpname,
+          lv_value         TYPE string.
+
+* Get Context Node of Search Window
+    TRY .
+        lv_context_node = gr_oked_search_popup->get_context_node( iv_cnode_name = 'SELECTCODE' ).
+        lv_col_wrapper = lv_context_node->collection_wrapper.
+        lv_current ?= lv_col_wrapper->get_current( ).
+      CATCH cx_root.
+
+    ENDTRY.
+
+
+    IF lv_current IS BOUND.
+* Check Outbound Plug
+      lv_outbound_plug = gr_oked_search_popup->get_fired_outbound_plug( ).
+      CHECK lv_outbound_plug = 'TOOVERVIEW'.
+
+      me->ztyped_context->zoked->set_zz_oked_code(
+        EXPORTING
+          attribute_path = ''
+*          iterator       =
+          value          = lv_current->get_property_as_string( 'CODE' )
+      ).
+    ENDIF.
+  ENDMETHOD.
