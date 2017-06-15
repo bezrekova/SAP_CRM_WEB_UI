@@ -1,0 +1,34 @@
+*Copying content of one struct to another 
+*param
+*is_struct type any imp
+*cs_struct_x type any exp
+METHOD set_x_struct.
+    DATA:
+      lr_typedescr   TYPE REF TO cl_abap_typedescr,
+      lr_structdescr TYPE REF TO cl_abap_structdescr,
+
+      lt_fields      TYPE ttfieldname,
+      lt_field_list  TYPE ddfields.
+
+    lr_typedescr = cl_abap_structdescr=>describe_by_data( is_struct ).
+    lr_structdescr ?= lr_typedescr.
+
+    lt_field_list = lr_structdescr->get_ddic_field_list( ).
+
+    LOOP AT lt_field_list ASSIGNING FIELD-SYMBOL(<lfs_field>).
+      APPEND <lfs_field>-fieldname TO lt_fields.
+    ENDLOOP.
+
+    LOOP AT lt_fields ASSIGNING FIELD-SYMBOL(<field_name>).
+      ASSIGN COMPONENT <field_name> OF STRUCTURE is_struct TO FIELD-SYMBOL(<is>).
+      CHECK sy-subrc = 0.
+
+      ASSIGN COMPONENT <field_name> OF STRUCTURE cs_struct_x TO FIELD-SYMBOL(<cs_x>).
+      CHECK sy-subrc = 0.
+
+      IF <is> IS NOT INITIAL.
+        <cs_x> = abap_true.
+      ENDIF.
+
+    ENDLOOP.
+  ENDMETHOD.
