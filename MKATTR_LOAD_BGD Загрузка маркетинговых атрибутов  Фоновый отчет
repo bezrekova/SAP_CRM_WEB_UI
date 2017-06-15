@@ -1,0 +1,364 @@
+Table ZALX_MKATTR_DATA
+---------------------------------------------------------------------------------------------------------------------
+Поле		Элемент данных	Тип данных	Длина		Описание
+---------------------------------------------------------------------------------------------------------------------
+MANDT		MANDT		CLNT		3	0	Мандант
+GUID_H		GUID_16		RAW		16	0	GUID в формате 'RAW'
+ROWNO		ZALX_ROWNO	INT4		10	0	                                                            
+ATNAM		ATNAM		CHAR		30	0	Имя признака
+ATWRT		ATWRT		CHAR		30	0	Значение признака
+PARTNER		BU_PARTNER	CHAR		10	0	Номер делового партнера
+---------------------------------------------------------------------------------------------------------------------
+
+таблица ZALX_MKATTR_LOG
+
+---------------------------------------------------------------------------------------------------------------------
+Поле		Элемент данных	Тип данных	Длина		Описание
+---------------------------------------------------------------------------------------------------------------------
+MANDT		MANDT		CLNT	3	0	Мандант
+GUID_H		GUID_16		RAW	16	0	GUID в формате 'RAW'
+ROWNO		ZALX_ROWNO	INT4	10	0	                                                            
+MSGCNT				INT1	3	0	Номер сообщения
+MESSAGE		BAPI_MSG	CHAR	220	0	Текст сообщения
+---------------------------------------------------------------------------------------------------------------------
+
+таблица ZALX_MKATTR_MAPP
+---------------------------------------------------------------------------------------------------------------------
+Поле		Элемент данных	Тип данных	Длина		Описание
+---------------------------------------------------------------------------------------------------------------------
+MANDT		MANDT		CLNT	3	0	Мандант
+COLNO		ZALX_COLNO	INT4	10	0	                                                            
+ATNAM		ATNAM		CHAR	30	0	Имя признака
+---------------------------------------------------------------------------------------------------------------------
+
+таблица ZALX_MKATTR_HEAD
+---------------------------------------------------------------------------------------------------------------------
+Поле		Элемент данных		Тип данных	Длина		Описание
+---------------------------------------------------------------------------------------------------------------------
+MANDT		MANDT			CLNT	3	0	Мандант
+GUID		GUID_16			RAW	16	0	GUID в формате 'RAW'
+PERIOD_YEAR	ZALX_YEAR		NUMC	4	0	                                                            
+PERIOD_MONTH	ZALX_MONTH		NUMC	2	0	                                                            
+CREATED_AT	COMT_CREATED_AT_USR	DEC	15	0	Дата создания (вывод в часовом поясе пользователя)
+CREATED_BY	CRMT_CREATED_BY		CHAR	12	0	Пользователь, создавший операцию
+FNAME		ZALX_FNAME		CHAR	200	0	                                                            
+FSTATUS		ZALX_FSTATUS		CHAR	1	0	                                                            
+JOBCOUNT	BTCJOBCNT		CHAR	8	0	Идентификационный номер задания
+__________________________________________________________
+
+*&---------------------------------------------------------------------*
+*& Report  ZALX_MKATTR_LOAD_BGD
+*&---------------------------------------------------------------------*
+
+REPORT zalx_mkattr_load_bgd.
+
+TYPES : BEGIN OF ty_fdata,
+          line(4000) TYPE c,
+        END OF ty_fdata,
+        BEGIN OF ty_line,
+          col(200),
+        END OF ty_line,
+        BEGIN OF ty_partner,
+          partner TYPE bu_partner,
+          partner_guid TYPE bu_partner_guid,
+        END OF ty_partner.
+
+DATA : gt_fdata   TYPE TABLE OF ty_fdata,
+       gs_fdata   TYPE ty_fdata,
+       gt_line    TYPE TABLE OF ty_line,
+       gs_line    TYPE ty_line,
+       gt_data    TYPE TABLE OF zalx_mkattr_data,
+       gs_data    TYPE zalx_mkattr_data,
+       gt_log     TYPE TABLE OF zalx_mkattr_log,
+       gs_log     TYPE zalx_mkattr_log,
+       gt_mapp    TYPE TABLE OF zalx_mkattr_mapp,
+       gs_mapp    TYPE zalx_mkattr_mapp,
+       gt_partner TYPE TABLE OF ty_partner,
+       gs_partner TYPE ty_partner,
+       gs_head    TYPE zalx_mkattr_head,
+       gv_guid    TYPE guid_16,
+       gv_log_cnt TYPE i,
+       gv_tabix   TYPE i,
+       gv_text    TYPE string,
+       gv_sort2   TYPE bu_sort2.
+
+DATA : gv_prof_template TYPE crmt_prof_template VALUE 'KA_MARKATTR',
+       gt_imp_seltab    TYPE TABLE OF crmt_mktprof_comw,
+       gs_imp_seltab    TYPE crmt_mktprof_comw,
+       gt_return        TYPE TABLE OF bapiret2,
+       gs_return        TYPE bapiret2,
+       gt_tpl_list      TYPE crmt_mktpftpl_char_tp,
+       gs_tpl_list      TYPE LINE OF crmt_mktpftpl_char_tp,
+       gt_allocvalues   TYPE crmt_mktpfchr_attribute_list,
+       gs_allocvalues   TYPE LINE OF crmt_mktpfchr_attribute_list,
+       lt_ma_partner    TYPE TABLE OF crmt_mktbp_partner_tab,
+       ls_ma_partner   TYPE crmt_mktbp_partner_tab,
+       lt_attributes   TYPE TABLE OF crmt_mktpfchr_attribute_line,
+       ls_attributes   TYPE crmt_mktpfchr_attribute_line.
+
+DATA : gs_usr01  TYPE usr01.
+
+PARAMETERS : p_guid_c TYPE guid_32,
+             p_skip_1 AS CHECKBOX,
+             p_nobpud AS CHECKBOX.
+
+DEFINE add_log.
+  clear gs_log.
+  gs_log-guid_h = gv_guid.
+  gs_log-rowno = gv_tabix.
+  add 1 to gv_log_cnt.
+  gs_log-msgcnt = gv_log_cnt.
+  gs_log-message = &1.
+  append gs_log to gt_log.
+END-OF-DEFINITION.
+
+START-OF-SELECTION.
+
+  IMPORT gt_fdata = gt_fdata FROM DATABASE zalx_cluster(ma) ID p_guid_c.
+  IF sy-subrc NE 0.
+    MESSAGE 'Ошибка чтения файла из БД' TYPE 'I'.
+    EXIT.
+  ENDIF.
+
+  DESCRIBE TABLE gt_fdata LINES gv_tabix.
+  gv_text = gv_tabix.
+  CONCATENATE 'Импортируемый файл содержит' gv_text 'строк' INTO gv_text SEPARATED BY space.
+  CONDENSE gv_text.
+  MESSAGE gv_text TYPE 'I'.
+
+  gv_guid = p_guid_c.
+  SELECT SINGLE *
+         INTO gs_head
+         FROM zalx_mkattr_head
+         WHERE guid EQ gv_guid.
+  IF sy-subrc NE 0.
+    MESSAGE 'Ошибка чтения заголовка!' TYPE 'I'.
+    EXIT.
+  ENDIF.
+
+  SELECT *
+         INTO TABLE gt_mapp
+         FROM zalx_mkattr_mapp.
+  READ TABLE gt_mapp WITH KEY atnam = 'LA' TRANSPORTING NO FIELDS.
+  IF sy-subrc NE 0.
+    MESSAGE 'Мэппинг полей файла отсутствует или не содержит признак LA!' TYPE 'I'.
+    EXIT.
+  ENDIF.
+
+  DELETE FROM zalx_mkattr_data WHERE guid_h EQ gv_guid.
+  COMMIT WORK.
+
+  CLEAR : gt_tpl_list[], gt_allocvalues[].
+  CALL FUNCTION 'CRM_MKTPFTPL_READ_ALL_TPL'
+*   EXPORTING
+*     IV_CLASSGROUP           = 'MKT_PT'
+*     IV_MAXHITS              = 100
+*     IV_DATE                 = SY-DATUM
+*     IV_LANGU                = SY-LANGU
+*     IV_BP_TYPE              = ' '
+    IMPORTING
+      et_tpl_list             = gt_tpl_list
+*   TABLES
+*     ET_RETURN               =
+*     IT_CLASSSELECTION       =
+            .
+  READ TABLE gt_tpl_list INTO gs_tpl_list WITH KEY profile_template_id = gv_prof_template.
+  IF sy-subrc NE 0.
+    CONCATENATE 'Ошибка чтения Группы маркетинговых признаков' gv_prof_template INTO gv_text SEPARATED BY space.
+    CONDENSE gv_text.
+    MESSAGE gv_text TYPE 'I'.
+    EXIT.
+  ENDIF.
+  gt_allocvalues[] = gs_tpl_list-allocvalues[].
+  SORT gt_allocvalues BY atname.
+  DELETE ADJACENT DUPLICATES FROM gt_allocvalues COMPARING atname.
+
+  SELECT SINGLE *
+         INTO gs_usr01
+         FROM usr01
+         WHERE bname EQ sy-uname.
+
+  LOOP AT gt_fdata INTO gs_fdata.
+
+    gv_tabix = sy-tabix.
+
+    AT FIRST.
+      IF p_skip_1 IS NOT INITIAL.
+        CONTINUE.
+      ENDIF.
+    ENDAT.
+
+    " Разделение строки на столбцы
+
+    CLEAR gt_line[].
+    SPLIT gs_fdata-line AT ';'
+          INTO TABLE gt_line
+          IN CHARACTER MODE.
+    IF gt_line[] IS INITIAL. " Пустая строка
+      CONTINUE.
+    ENDIF.
+
+    " Инициализация журнала
+    CLEAR : gt_log[], gv_log_cnt.
+
+    " Парсинг столбцов
+    CLEAR gt_data[].
+    LOOP AT gt_mapp INTO gs_mapp.
+      READ TABLE gt_line INTO gs_line INDEX gs_mapp-colno.
+      IF sy-subrc EQ 0 AND gs_line-col IS NOT INITIAL.
+        CLEAR gs_data.
+        gs_data-guid_h = gv_guid.
+        gs_data-rowno = gv_tabix.
+        gs_data-atnam = gs_mapp-atnam.
+        gs_data-atwrt = gs_line-col.
+        APPEND gs_data TO gt_data.
+      ENDIF.
+    ENDLOOP.
+
+    " Добавление номера партнера
+    CLEAR gs_partner.
+    READ TABLE gt_data INTO gs_data WITH KEY atnam = 'LA'.
+    IF sy-subrc EQ 0 AND gs_data-atwrt IS NOT INITIAL.
+      gv_sort2 = gs_data-atwrt.
+      CLEAR gt_partner[].
+      SELECT partner partner_guid
+             INTO CORRESPONDING FIELDS OF TABLE gt_partner
+             FROM but000
+             WHERE bu_sort2 EQ gv_sort2
+             ORDER BY partner.
+      READ TABLE gt_partner INTO gs_partner INDEX 1.
+      IF sy-subrc EQ 0.
+        LOOP AT gt_data INTO gs_data.
+          gs_data-partner = gs_partner-partner.
+          MODIFY gt_data FROM gs_data.
+        ENDLOOP.
+      ELSE.
+        CONCATENATE 'Для указанного LA' gv_sort2 'не найден ДП!' INTO gv_text SEPARATED BY space.
+        CONDENSE gv_text.
+        add_log gv_text.
+      ENDIF.
+    ELSE.
+      add_log 'В строке не указан LA!'.
+    ENDIF.
+
+    " Запись данных в БД
+    LOOP AT gt_data INTO gs_data.
+      INSERT zalx_mkattr_data FROM gs_data.
+    ENDLOOP.
+
+    CALL FUNCTION 'DB_COMMIT'.
+
+    IF p_nobpud IS INITIAL AND gs_partner-partner_guid IS NOT INITIAL.
+
+*      DATA qwe.
+*      WHILE qwe ne '7'.
+*      ENDWHILE.
+
+      CLEAR : lt_ma_partner[], lt_attributes[], gt_return[], ls_ma_partner.
+
+      ls_ma_partner-partner = gs_partner-partner.
+      ls_ma_partner-partner_guid = gs_partner-partner_guid.
+      APPEND ls_ma_partner TO lt_ma_partner.
+
+      " Удаляем старые значения атрибутов у ДП
+      CALL FUNCTION 'CRM_MKTBP_CHANGE_BP'
+        EXPORTING
+          iv_profile_template_id       = gv_prof_template
+          iv_bp_guid                   = gs_partner-partner_guid
+*         IV_XDESCR                    = ' '
+          iv_fcode                     = 'D'
+*         IV_MSA                       = 'X'
+*         IV_COMMIT                    = 'X'
+*         IV_PARTNER                   =
+*         IV_CONVERT_VALUES            = 'X'
+        TABLES
+*         IT_IMP_SELTAB                =
+          et_return                    = gt_return.
+
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+        EXPORTING
+          wait = 'X'.
+
+      " Добавляем новые значения атрибутов для ДП
+      CLEAR : gt_imp_seltab[], gt_return[].
+      LOOP AT gt_data INTO gs_data.
+        READ TABLE gt_allocvalues INTO gs_allocvalues
+                                  WITH KEY atname = gs_data-atnam.
+        CHECK sy-subrc EQ 0. " Проверка наличия атрибута в группе атрибутов
+        IF gs_allocvalues-anzdz NE 0. " Есть дробная часть (числа, валюта)
+          IF gs_usr01-dcpfm EQ 'X'. " Точка
+            REPLACE ALL OCCURRENCES OF ',' IN gs_data-atwrt WITH '.'.
+          ELSE. " Запятая
+            REPLACE ALL OCCURRENCES OF '.' IN gs_data-atwrt WITH ','.
+          ENDIF.
+        ENDIF.
+*        CLEAR gs_imp_seltab.
+*        gs_imp_seltab-atname = gs_data-atnam.
+*        gs_imp_seltab-atwrt = gs_data-atwrt.
+*        APPEND gs_imp_seltab TO gt_imp_seltab.
+        CLEAR ls_attributes.
+        ls_attributes-atname  = gs_data-atnam.
+        ls_attributes-atvalue = gs_data-atwrt.
+        APPEND ls_attributes TO lt_attributes.
+      ENDLOOP.
+
+*      CALL FUNCTION 'CRM_MKTBP_CHANGE_BP'
+*        EXPORTING
+*          iv_profile_template_id       = gv_prof_template
+*          iv_bp_guid                   = gs_partner-partner_guid
+**         IV_XDESCR                    = ' '
+*          iv_fcode                     = 'C'
+**         IV_MSA                       = 'X'
+**         IV_COMMIT                    = 'X'
+**         IV_PARTNER                   =
+**         IV_CONVERT_VALUES            = 'X'
+*        TABLES
+*          it_imp_seltab                = gt_imp_seltab
+*          et_return                    = gt_return.
+*      LOOP AT gt_return INTO gs_return WHERE type EQ 'E'.
+*        " add_log gs_return-message.
+*        CONCATENATE 'ДП' gs_partner-partner '/ LA' gv_sort2 '->' gs_return-message INTO gv_text SEPARATED BY space.
+*        CONDENSE gv_text.
+*        add_log gv_text.
+*      ENDLOOP.
+
+*      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+*        EXPORTING
+*          wait = 'X'.
+
+      CALL FUNCTION 'CRM_MKTBP_ASSIGN_ATTRIBUT_TAB'
+        EXPORTING
+          iv_attribute_set       = gv_prof_template
+*         IV_MSA                 = ' '
+*         IV_COMMIT              = 'X'
+*         IV_OBTYP               = 'BUT000'
+*         IV_WRITE_ALE           = 'X'
+        TABLES
+          it_partner             = lt_ma_partner
+          et_return              = gt_return
+          it_attributes          = lt_attributes.
+
+      LOOP AT gt_return INTO gs_return WHERE type EQ 'E' OR type EQ 'W'.
+        CONCATENATE 'ДП' gs_partner-partner '/ LA' gv_sort2 '->' gs_return-message INTO gv_text SEPARATED BY space.
+        CONDENSE gv_text.
+        add_log gv_text.
+      ENDLOOP.
+
+    ENDIF.
+
+    LOOP AT gt_log INTO gs_log.
+      INSERT zalx_mkattr_log FROM gs_log.
+    ENDLOOP.
+
+    CALL FUNCTION 'DB_COMMIT'.
+
+  ENDLOOP.
+
+  UPDATE zalx_mkattr_head
+         SET fstatus = 'I'          " Импорт завершен
+         WHERE guid EQ gv_guid.
+  DELETE FROM DATABASE zalx_cluster(ma) ID p_guid_c.
+
+  CALL FUNCTION 'DB_COMMIT'.
+
+* END
