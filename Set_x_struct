@@ -32,3 +32,8 @@ METHOD set_x_struct.
 
     ENDLOOP.
   ENDMETHOD.
+
+*if line not exist in itab add str to itab
+    IF NOT line_exists( lt_adsmtp_old[ e_mail = ls_communications-email ] ).
+      APPEND VALUE #( email = ls_communications-email ) TO lt_adsmtp.
+    ENDIF.
