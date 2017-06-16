@@ -1,0 +1,201 @@
+*&---------------------------------------------------------------------*
+*& Report ZOK_TEST
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zok_test.
+
+
+DATA: lt_result       TYPE  TABLE OF zst_ma_bp_info,
+      lv_partner_guid	TYPE bu_partner_guid.
+DATA: lv_partner TYPE bu_partner.
+DATA: ls_result TYPE zst_ma_bp_info .
+DATA: lt_attrs TYPE TABLE OF crmt_mktprof_comw_t,
+      ls_attrs TYPE crmt_mktprof_comw.
+
+CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+  EXPORTING
+    input  = '363'
+  IMPORTING
+    output = lv_partner.
+.
+
+CALL FUNCTION 'BUPA_NUMBERS_GET'
+  EXPORTING
+    iv_partner      = lv_partner
+    "IV_PARTNER_GUID           =
+    "IV_PARTNER_EXTERNAL       =
+    "IV_REQ_MASK               = 'X'
+  IMPORTING
+    ev_partner_guid = lv_partner_guid
+*   EV_PARTNER_EXTERNAL       =
+*   ES_BUT000       =
+* TABLES
+*   ET_RETURN       =
+*   ET_PARTNER      =
+  .
+DATA: lt_partner TYPE TABLE OF  crmt_mktbp_partner_tab,
+      ls_partner TYPE crmt_mktbp_partner_tab.
+DATA: lt_return TYPE bapiret2_t.
+DATA: lt_attributes TYPE TABLE OF crmt_mktpfchr_attribute_line,
+      ls_attributes TYPE crmt_mktpfchr_attribute_line.
+
+zcl_help_tools=>read_ma_from_bp(
+   EXPORTING
+     iv_partner      =  lv_partner   " Номер делового партнера
+     iv_partner_guid =   lv_partner_guid  " GUID делового партнера
+   RECEIVING
+     rt_result       =  lt_result   " Информация об МА на ДП
+ ).
+
+IF lt_result IS NOT INITIAL .
+  SORT lt_result BY ma_profil ma_name.
+
+
+*FIND ALL OCCURRENCES OF 'ZEMPINDUSTRY'  IN TABLE lt_result
+*             RESULTS DATA(lt_search) .
+
+*LOOP AT lt_search[] INTO DATA(ls_search).
+*ENDLOOP.
+
+  ls_partner-partner = lv_partner.
+  ls_partner-partner_guid = lv_partner_guid.
+  APPEND ls_partner TO lt_partner[].
+
+  READ TABLE lt_result[] INTO ls_result WITH  KEY ma_name =  'ZEMPNUM'.
+  IF ls_result-ma_value <> '31-50'."ls_person-industry
+*меняем значение
+*  ls_attrs-atname = 'ZEMPINDUSTRY'.
+*  ls_attrs-atwrt = '2'.
+
+
+    ls_attributes-atname = 'ZEMPNUM'.
+    ls_attributes-atvalue = '03'.
+    APPEND ls_attributes TO lt_attributes.
+  ENDIF.
+
+  CLEAR ls_result.
+  READ TABLE lt_result[] INTO ls_result  WITH  KEY ma_name =  'ZEMPINDUSTRY' .
+  IF ls_result-ma_value <> '2'."ls_person-industry
+*меняем значение
+*  ls_attrs-atname = 'ZEMPINDUSTRY'.
+*  ls_attrs-atwrt = '2'.
+    ls_attributes-atname = 'ZEMPINDUSTRY'.
+    ls_attributes-atvalue = '2'.
+    APPEND ls_attributes TO lt_attributes.
+  ENDIF.
+
+
+  CALL FUNCTION 'CRM_MKTBP_ASSIGN_ATTRIBUT_TAB'
+    EXPORTING
+      iv_attribute_set = ls_result-ma_profil
+*     IV_MSA           = ' '
+      iv_commit        = 'X'
+      iv_obtyp         = 'BUT000'
+*     IV_WRITE_ALE     = 'X'
+*     IV_EXTERNAL      =
+*     IV_TEST          = ' '
+    TABLES
+      it_partner       = lt_partner
+      et_return        = lt_return
+      it_attributes    = lt_attributes.
+
+*  CALL FUNCTION 'CRM_MKTBP_ASSIGN_ATTRIBUT'
+*    EXPORTING
+*     iv_atname     = ls_attrs-atname
+*     iv_attribute_set = 'ZEMPLOYEE'
+*     "iv_msa       = iv_msa
+*     iv_atwrt      = ls_attrs-atwrt
+**     IV_SINGLE_VALUE  = ls_cabn-atein
+*     iv_commit     = 'X'
+**     iv_write_ale     = IV_WRITE_ALE
+**     IV_EXTERNAL      = IV_EXTERNAL
+**     IV_CHANGED_AT    = ls_attributes-CHANGED_AT
+**     IV_CHANGED_BY    = ls_attributes-CHANGED_BY
+**     iv_test          = iv_test
+*    TABLES
+*     it_partner    = lt_partner
+*     et_return     = lt_return.
+
+
+
+
+*  FIND ALL OCCURRENCES OF ls_person-previous_last_name  IN TABLE lt_result
+*               RESULTS DATA(lv_res).
+
+
+  WRITE: 'good'.
+
+
+ENDIF.
+
+
+*LOOP AT lt_result[] INTO ls_result  .
+*  READ TABLE lt_result[] INTO ls_result
+*                            WITH KEY
+*                              ls_result-ma_profil = 'ZEMPLOYEE' . "comparing with const
+**if profile was found
+*  IF sy-subrc EQ 0.
+*    IF ls_result-ma_name <> 'ZEMPINDUSTRY' .
+*      WRITE: 'bad'.
+*    ENDIF.
+*
+*  ENDIF.
+*
+
+*ENDIF.
+*ENDLOOP.
+*data: lT_IMP_SELTAB type   CRMT_MKTPROF_COMW.
+
+*" Удаляем старые значения атрибутов у ДП
+*CALL FUNCTION 'CRM_MKTBP_CHANGE_BP'
+*  EXPORTING
+*    iv_profile_template_id       = 'ZEMPLOYEE'
+*   IV_BP_GUID                   = lv_partner_guid
+**   IV_XDESCR                    = ' '
+**   IV_FCODE                     = 'C'
+**   IV_MSA                       = 'X'
+*     IV_COMMIT                    = 'X'
+**   IV_PARTNER                   =
+**   IV_CONVERT_VALUES            = 'X'
+** TABLES
+**   IT_IMP_SELTAB                =
+**   ET_RETURN                    =
+*          .
+*
+**if we need to change group
+*data: lt_alloclist type CRMT_MKTBP_BP_VALUES_T,
+*      ls_alloclist type crmt_mktbp_bp_values.
+*
+*ls_alloclist-attribute_set = ls_result-ma_profil.
+*
+*
+*
+*CALL FUNCTION 'CRM_MKTBP_SAVE_BP_LIST'
+*  EXPORTING
+**   IV_MSA                  = ' '
+**   IV_COMMIT               = 'X'
+*    it_alloclist_bp         =
+**   IV_CONVERT_VALUES       = 'X'
+**   IV_OBJTYP               = 'BUT000'
+**   IV_SET_LOCK             = 'X'
+**   IV_WRITE_ALE            = 'X'
+** TABLES
+**   ET_RETURN               =
+*          .
+*
+*
+*CALL FUNCTION 'CRM_MKTBP_ASSIGN_ATTRIBUT_TAB'
+*  EXPORTING
+*    iv_attribute_set       = 'ZEMPLOYEE'
+**   IV_MSA                 = ' '
+*    IV_COMMIT              = 'X'
+*    IV_OBTYP               = 'BUT000'
+**   IV_WRITE_ALE           = 'X'
+**   IV_EXTERNAL            =
+**   IV_TEST                = ' '
+*  tables
+*    it_partner             =
+**   ET_RETURN              =
+*    it_attributes          =
+*          .
