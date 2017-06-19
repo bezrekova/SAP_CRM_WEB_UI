@@ -1,0 +1,52 @@
+ METHOD set_data.
+
+    ev_result = abap_true.
+
+    TRY.
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = 'ZTAB00000B' ).
+        DATA(lv_partner_guid) = get_partner_guid( iv_partner ).
+
+        lr_axt_api->initialize( ).
+
+        DATA: lt_record_id TYPE TABLE OF axt_record_id.
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = lv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        DATA(lv_record_id) = VALUE #( lt_record_id[ 1 ] OPTIONAL ).
+
+        IF lv_record_id IS NOT INITIAL.
+          lr_axt_api->change(
+            EXPORTING
+              iv_record_id        = lv_record_id
+              is_data             = is_data
+              it_changed_fields   = get_changed_fields( is_data_x )
+          ).
+        ELSE.
+          lr_axt_api->create(
+            EXPORTING
+              iv_object_id        = lv_partner_guid
+              iv_parent_id        = lv_partner_guid
+              iv_record_id        = cl_system_uuid=>create_uuid_x16_static( )
+              is_data             = is_data
+              iv_restrictive_mode = abap_true
+              iv_not_exists       = abap_true
+          ).
+
+        ENDIF.
+
+        IF iv_save = abap_true.
+          lr_axt_api->save( ).
+
+        ENDIF.
+
+        lr_axt_api->buffer_subscribe_for_refresh( ).
+
+      CATCH cx_root.
+        ev_result = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
