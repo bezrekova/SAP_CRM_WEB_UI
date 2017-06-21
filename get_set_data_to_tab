@@ -1,0 +1,78 @@
+METHOD get_data.
+    TRY.
+
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = 'ZTD_NAME4SEARCH' ).
+
+        DATA: lt_record_id TYPE TABLE OF axt_record_id.
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = iv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        DATA(lv_record_id) = lt_record_id[ 1 ].
+
+        lr_axt_api->get_detail(
+          EXPORTING
+            iv_record_id          = lv_record_id
+          IMPORTING
+            es_attr               = rs_attr
+        ).
+
+      CATCH cx_root.
+    ENDTRY.
+  ENDMETHOD.
+  
+   METHOD set_data.
+    TRY.
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = 'ZTD_NAME4SEARCH' ).
+        TRY.
+            CALL METHOD lr_axt_api->initialize
+*  EXPORTING
+*    it_object_id =
+*    iv_cascade   = ABAP_TRUE
+              .
+          CATCH cx_axt_runtime.
+        ENDTRY.
+
+
+        CALL METHOD lr_axt_api->buffer_subscribe_for_refresh.
+
+        DATA: lt_record_id TYPE TABLE OF axt_record_id.
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = iv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        DATA(lv_record_id) = VALUE #( lt_record_id[ 1 ] OPTIONAL ).
+
+        IF lv_record_id IS NOT INITIAL.
+          DATA ls_attr_x TYPE ztd_name4search_x.
+          lr_axt_api->change(
+            EXPORTING
+              iv_record_id        = lv_record_id
+              is_data             = is_attr
+              it_changed_fields   = get_changed_fields( ls_attr_x )
+          ).
+        ELSE.
+          lr_axt_api->create(
+            EXPORTING
+              iv_object_id        = iv_partner_guid
+              iv_parent_id        = iv_partner_guid
+              iv_record_id        = cl_system_uuid=>create_uuid_x16_static( )
+              is_data             = is_attr
+              iv_restrictive_mode = abap_true
+          ).
+
+        ENDIF.
+
+        IF iv_save = abap_true.
+          lr_axt_api->save( ).
+        ENDIF.
+
+      CATCH cx_root.
+    ENDTRY.
+  ENDMETHOD.
