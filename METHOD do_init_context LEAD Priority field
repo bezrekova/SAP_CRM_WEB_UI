@@ -1,0 +1,34 @@
+  METHOD do_init_context.
+    DATA: lr_partner_0006 TYPE REF TO cl_crm_bol_entity,
+          lr_btleadh      TYPE REF TO cl_crm_bol_entity,
+          lr_partner      TYPE REF TO cl_crm_bol_entity,
+          lr_partner_ext  TYPE REF TO cl_crm_bol_entity,
+          lr_iterator     TYPE REF TO  if_bol_bo_col_iterator,
+          lv_partner_guid TYPE bu_partner_guid.
+    DATA: lv_vip TYPE string.
+
+    CALL METHOD super->do_init_context.
+*    CHECK 1 EQ 2.
+    lr_iterator ?= typed_context->btpartnerprospect->collection_wrapper->get_iterator( ).
+
+    IF lr_iterator IS BOUND .
+      lr_partner_0006 ?= lr_iterator->get_current( ).
+    ELSE.
+      lr_partner_0006 ?= typed_context->btpartnerprospect->collection_wrapper->get_current( ).
+    ENDIF.
+
+
+    lv_partner_guid = lr_partner_0006->get_property_as_string( 'BP_PARTNER_GUID' ).
+    lr_partner = cl_crm_bol_core=>get_instance( )->get_root_entity( iv_object_name = 'BuilHeader' iv_object_guid = lv_partner_guid ).
+    lr_partner_ext  = lr_partner->get_related_entity( iv_relation_name = 'ZEXT_BOL_RELAT000001' ).
+    lv_vip =  lr_partner_ext->get_property_as_string( 'ZZVIP' ).
+
+    IF lv_vip EQ abap_true."для випов ставим приоритет высокий
+      lr_btleadh ?= typed_context->btleadh->collection_wrapper->get_current( ).
+      lr_btleadh->set_property_as_string( iv_attr_name = 'IMPORTANCE' iv_value = zif_bt_priority_const=>importance-high ).
+    ENDIF.
+
+
+
+
+  ENDMETHOD.
