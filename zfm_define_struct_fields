@@ -1,0 +1,28 @@
+UNCTION zfm_define_struct_fields.
+*"----------------------------------------------------------------------
+*"*"Локальный интерфейс:
+*"  IMPORTING
+*"     REFERENCE(IS_STRUCTURE) TYPE  ANY
+*"  EXPORTING
+*"     REFERENCE(ET_FIELDS) TYPE  TTFIELDNAME
+*"----------------------------------------------------------------------
+
+
+  DATA: lr_typedescr   TYPE REF TO cl_abap_typedescr,
+        lr_structdescr TYPE REF TO cl_abap_structdescr,
+
+        lt_field_list  TYPE ddfields.
+
+  lr_typedescr = cl_abap_structdescr=>describe_by_data( is_structure ).
+  lr_structdescr ?= lr_typedescr.
+
+  lt_field_list = lr_structdescr->get_ddic_field_list( ).
+
+  LOOP AT lt_field_list ASSIGNING FIELD-SYMBOL(<lfs_field>).
+    APPEND <lfs_field>-fieldname TO et_fields.
+  ENDLOOP.
+
+  CLEAR lt_field_list[].
+
+
+ENDFUNCTION.
