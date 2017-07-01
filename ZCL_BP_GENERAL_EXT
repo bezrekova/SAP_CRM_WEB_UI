@@ -1,0 +1,191 @@
+class ZCL_BP_GENERAL_EXT definition
+  public
+  final
+  create public .
+
+public section.
+
+  class-methods GET_DATA
+    importing
+      !IV_PARTNER type BU_PARTNER
+    returning
+      value(ES_DATA) type ZTAB00000B_ATTR .
+  class-methods SET_DATA
+    importing
+      !IV_PARTNER type BU_PARTNER
+      !IV_SAVE type BOOLEAN default ABAP_TRUE
+      !IS_DATA type ZTAB00000B_ATTR
+      !IS_DATA_X type ZTAB00000B_X
+    exporting
+      value(EV_ERROR) type STRING
+    returning
+      value(EV_RESULT) type BOOLEAN .
+protected section.
+private section.
+
+  class-methods GET_PARTNER_GUID
+    importing
+      !IV_PARTNER type BU_PARTNER
+    returning
+      value(EV_PARTNER_GUID) type BU_PARTNER_GUID .
+  class-methods GET_CHANGED_FIELDS
+    importing
+      !IS_DATA_X type ZTAB00000B_X
+    returning
+      value(ET_CHANGED_FIELDS) type TTFIELDNAME .
+ENDCLASS.
+
+
+
+CLASS ZCL_BP_GENERAL_EXT IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Private Method ZCL_BP_GENERAL_EXT=>GET_CHANGED_FIELDS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_DATA_X                      TYPE        ZTAB00000B_X
+* | [<-()] ET_CHANGED_FIELDS              TYPE        TTFIELDNAME
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_changed_fields.
+
+    DATA: lt_fields TYPE ttfieldname.
+
+    CALL FUNCTION 'ZFM_DEFINE_STRUCT_FIELDS'
+      EXPORTING
+        is_structure = is_data_x
+      IMPORTING
+        et_fields    = lt_fields.
+
+    LOOP AT lt_fields ASSIGNING FIELD-SYMBOL(<field_name>).
+      ASSIGN COMPONENT <field_name> OF STRUCTURE is_data_x TO FIELD-SYMBOL(<is>).
+      CHECK sy-subrc = 0.
+
+      IF <is> = abap_true.
+        APPEND <field_name> TO et_changed_fields.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_BP_GENERAL_EXT=>GET_DATA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [<-()] ES_DATA                        TYPE        ZTAB00000B_ATTR
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_data.
+
+    TRY.
+        DATA(lv_partner_guid) = get_partner_guid( iv_partner ).
+
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = 'ZTAB00000B' ).
+
+        DATA: lt_record_id TYPE TABLE OF axt_record_id.
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = lv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        DATA(lv_record_id) = lt_record_id[ 1 ].
+
+        lr_axt_api->get_detail(
+          EXPORTING
+            iv_record_id          = lv_record_id
+          IMPORTING
+            es_attr               = es_data
+        ).
+
+      CATCH cx_root.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Private Method ZCL_BP_GENERAL_EXT=>GET_PARTNER_GUID
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [<-()] EV_PARTNER_GUID                TYPE        BU_PARTNER_GUID
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_partner_guid.
+
+    CALL FUNCTION 'BUPA_NUMBERS_GET'
+      EXPORTING
+        iv_partner      = iv_partner
+      IMPORTING
+        ev_partner_guid = ev_partner_guid.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_BP_GENERAL_EXT=>SET_DATA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [--->] IV_SAVE                        TYPE        BOOLEAN (default =ABAP_TRUE)
+* | [--->] IS_DATA                        TYPE        ZTAB00000B_ATTR
+* | [--->] IS_DATA_X                      TYPE        ZTAB00000B_X
+* | [<---] EV_ERROR                       TYPE        STRING
+* | [<-()] EV_RESULT                      TYPE        BOOLEAN
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD set_data.
+
+    ev_result = abap_true.
+
+    TRY.
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = 'ZTAB00000B' ).
+        DATA(lv_partner_guid) = get_partner_guid( iv_partner ).
+
+        "lr_axt_api->initialize( ).
+
+        DATA: lt_record_id TYPE TABLE OF axt_record_id.
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = lv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        DATA(lv_record_id) = VALUE #( lt_record_id[ 1 ] OPTIONAL ).
+
+        IF lv_record_id IS NOT INITIAL.
+          lr_axt_api->change(
+            EXPORTING
+              iv_record_id        = lv_record_id
+              is_data             = is_data
+              it_changed_fields   = get_changed_fields( is_data_x )
+          ).
+        ELSE.
+          lr_axt_api->create(
+            EXPORTING
+              iv_object_id        = lv_partner_guid
+              iv_parent_id        = lv_partner_guid
+              iv_record_id        = cl_system_uuid=>create_uuid_x16_static( )
+              is_data             = is_data
+              iv_restrictive_mode = abap_true
+              iv_not_exists       = abap_true
+          ).
+
+        ENDIF.
+
+        IF iv_save = abap_true.
+          lr_axt_api->save( ).
+
+        ENDIF.
+
+        lr_axt_api->buffer_subscribe_for_refresh( ).
+
+      CATCH cx_root INTO DATA(lr_root).
+        CALL METHOD lr_root->if_message~get_text
+          RECEIVING
+            result = ev_error.
+
+        ev_result = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
+ENDCLASS.
