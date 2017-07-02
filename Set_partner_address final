@@ -1,0 +1,295 @@
+  METHOD set_partner_address.
+
+    DATA: lt_addrnumber_guid TYPE TABLE OF  bus_addrnumber_guid,
+          ls_addrnumber_guid TYPE  bus_addrnumber_guid,
+          lt_addruse         TYPE TABLE OF  bus021,
+          ls_address         TYPE bapibus1006_address,
+          ls_address_x       TYPE bapibus1006_address_x,
+          ls_stand_addr_x    TYPE bapibus1006_address_x,
+
+          lt_adtel           TYPE bapiadtel_t,
+          lt_adtel_x         TYPE bapiadtelx_t,
+          ls_adtel           TYPE bapiadtel,
+          ls_adtel_x         TYPE bapiadtelx,
+
+          lt_adsmtp          TYPE bapiadsmtp_t,
+          ls_adsmtp          TYPE bapiadsmtp,
+          lt_adsmtp_x        TYPE bapiadsmtx_t,
+          ls_adsmtp_x        TYPE bapiadsmtx,
+
+          lt_fax_x           TYPE bapiadfaxx_t,
+          ls_fax_x           TYPE bapiadfaxx,
+          lt_fax             TYPE  bapiadfax_t,
+          ls_fax             TYPE  bapiadfax,
+
+          ls_addr_reply      TYPE gst_addr,
+
+          lv_create_com      TYPE abap_bool,
+          lt_return          TYPE bapiret2_t.
+
+    DATA: lv_addr_guid TYPE bu_address_guid.
+    DATA: ls_adduse   TYPE bapibus1006_addressusage,
+          lt_adduse   TYPE bapibus1006_addressusage_t,
+          ls_adduse_x TYPE bapibus1006_addressusage_x,
+          lt_adduse_x TYPE bapibus1006_addressusage_x_t.
+
+    CALL FUNCTION 'BUA_ADDRESS_GET_ALL'
+      EXPORTING
+        i_partner         = gs_partner-partner
+      TABLES
+        t_addrnumber_guid = lt_addrnumber_guid
+        t_addruse         = lt_addruse
+      EXCEPTIONS
+        no_address_found  = 1
+        wrong_parameters  = 2
+        internal_error    = 3
+        date_invalid      = 4
+        not_valid         = 5
+        partner_blocked   = 6
+        OTHERS            = 7.
+
+    IF sy-subrc <> 0.
+      MESSAGE e010(zcrm_int_mess) WITH sy-subrc INTO DATA(lv_dummy).
+      append_message( lv_dummy ).
+      gr_log->add_sy( ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT gs_change_data-address_tab INTO DATA(ls_address_input).
+
+      READ  TABLE gs_current_partner-address_tab INTO DATA(ls_address_old)
+     WITH  KEY type = CONV bu_adrkind( ls_address_input-type ).
+*      IF sy-subrc EQ 0."если уже есть адрес с таким типом
+      READ TABLE lt_addrnumber_guid   INTO ls_addrnumber_guid
+      WITH  KEY address_guid = CONV bu_address_guid( ls_address_input-addr_guid ).
+      IF sy-subrc EQ 0."если уже есть адрес с таким guid
+
+*номер адреса для передачи в ответ output
+        ls_addr_reply-addrguid = ls_addrnumber_guid-address_guid.
+        APPEND ls_addr_reply TO gt_addr_reply.
+        CLEAR ls_addr_reply.
+
+        ls_address-country = ls_address_input-country.
+        ls_address_x-country = abap_true.
+
+        IF ls_address_old-region <> ls_address_input-region.
+          ls_address-region = ls_address_input-region.
+          ls_address_x-region = abap_true.
+        ENDIF.
+
+        IF ls_address_old-city <> ls_address_input-city.
+          ls_address-city = ls_address_input-city.
+          ls_address_x-city = abap_true.
+        ENDIF.
+
+        IF ls_address_old-postal_code <> ls_address_input-postal_code.
+          ls_address-postl_cod1 = ls_address_input-postal_code.
+          ls_address_x-postl_cod1 = abap_true.
+        ENDIF.
+
+        IF ls_address_old-street <> ls_address_input-street .
+          ls_address-street = ls_address_input-street.
+          ls_address_x-street = abap_true.
+        ENDIF.
+
+        IF ls_address_old-house <> ls_address_input-house.
+          ls_address-house_no = ls_address_input-house.
+          ls_address_x-house_no = abap_true.
+        ENDIF.
+
+        IF ls_address_old-room <> ls_address_input-room.
+          ls_address-room_no = ls_address_input-room.
+          ls_address_x-room_no = abap_true.
+        ENDIF.
+*Район
+        IF ls_address_old-district <> ls_address_input-district.
+          set_bp_address_ext(
+       EXPORTING
+            iv_addr_guid = CONV bu_address_guid( ls_address_input-addr_guid )
+            ).
+        ENDIF.
+
+        READ TABLE lt_addruse INTO DATA(ls_all_address)
+        WITH KEY adr_kind = CONV bu_adrkind( zif_addr_types_const=>default ).
+        READ TABLE  lt_addrnumber_guid INTO DATA(ls_addr_guid)  WITH KEY addrnumber = ls_all_address-addrnumber.
+
+        IF sy-subrc EQ 0."если есть стандартный адрес
+          READ TABLE gs_current_partner-address_tab INTO DATA(ls_stand_addr) WITH KEY addr_guid = ls_addr_guid-address_guid.
+*           Проверяем таблицу коммуникаций
+          LOOP AT gs_change_data-communications_tab INTO DATA(ls_communications).
+            READ  TABLE gs_current_partner-communications_tab INTO DATA(ls_communication_old) WITH KEY type = ls_communications-type.
+            CASE ls_communications-type.
+* Стандартный
+              WHEN zif_pega_bpm_const=>gs_comm_type-standard_phone.
+                IF ls_communication_old-telephone  <> ls_communications-telephone
+                  OR ls_communication_old-phone_country_code <> ls_communications-phone_country_code .
+                  ls_adtel-r_3_user = zif_partner_main_attr_const=>gs_phone_type-standard.
+                  ls_adtel-country = ls_communications-phone_country_code.
+                  ls_adtel-telephone = ls_communications-telephone.
+                  APPEND ls_adtel TO lt_adtel.
+                  ls_adtel_x-r_3_user = abap_true.
+                  ls_adtel_x-country = abap_true.
+                  ls_adtel_x-telephone = abap_true.
+                ENDIF.
+*Мобильный
+              WHEN zif_pega_bpm_const=>gs_comm_type-mobile_phone.
+                IF ls_communication_old-telephone  <> ls_communications-telephone.
+                  ls_adtel-r_3_user = zif_partner_main_attr_const=>gs_phone_type-mobile.
+                  ls_adtel-telephone = ls_communications-telephone.
+                  APPEND ls_adtel TO lt_adtel.
+                  ls_adtel_x-r_3_user = abap_true.
+                  ls_adtel_x-telephone = abap_true.
+                ENDIF.
+*Домашний
+              WHEN zif_pega_bpm_const=>gs_comm_type-home_phone.
+                IF ls_communication_old-telephone  <> ls_communications-telephone.
+                  ls_fax-fax = CONV ad_fxnmbr( ls_communications-telephone ).
+                  APPEND ls_fax TO lt_fax.
+                  ls_fax_x-fax = abap_true.
+                  APPEND ls_fax_x TO lt_fax_x.
+                ENDIF.
+* Email
+              WHEN zif_pega_bpm_const=>gs_comm_type-email .
+                IF ls_communication_old-email <> ls_communications-email.
+                  ls_adsmtp-e_mail = ls_communications-email.
+                  APPEND ls_adsmtp TO lt_adsmtp.
+                  ls_adsmtp_x-e_mail = abap_true.
+                  APPEND ls_adsmtp_x TO lt_adsmtp_x.
+                ENDIF.
+            ENDCASE.
+
+            set_x_struct(
+            EXPORTING
+              is_struct = ls_stand_addr
+            CHANGING
+              cs_struct_x = ls_stand_addr_x
+             ).
+*ЕСЛИ  НА ВХОД ПРИШЁЛ ТИП АДРЕСА В ADDRESSTAB НЕСТАНДАРТНЫЙ
+            IF ls_address_input-type NE zif_addr_types_const=>default.
+              CALL FUNCTION 'BUPA_ADDRESS_CHANGE'
+                EXPORTING
+                  iv_partner   = gs_partner-partner
+                  iv_addrguid  = CONV bu_address_guid( ls_addrnumber_guid-address_guid )
+                  is_address   = ls_stand_addr
+                  is_address_x = ls_stand_addr_x
+*                 iv_x_save    = 'X'
+                TABLES
+                  it_adtel     = lt_adtel
+                  it_adtel_x   = lt_adtel_x
+                  it_adfax     = lt_fax
+                  it_adfax_x   = lt_fax_x
+                  it_adsmtp    = lt_adsmtp
+                  it_adsmt_x   = lt_adsmtp_x
+                  et_return    = lt_return.
+
+              IF is_error( lt_return ).
+                MESSAGE e003(zcrm_int_mess) INTO lv_dummy.
+                append_message( lv_dummy  ).
+                gr_log->add_bapiret_tab( lt_return ).
+                gv_no_save = abap_true.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+
+        CALL FUNCTION 'BUPA_ADDRESS_CHANGE'
+          EXPORTING
+            iv_partner   = gs_partner-partner
+            iv_addrguid  = CONV bu_address_guid( ls_address_input-addr_guid )
+            is_address   = ls_address
+            is_address_x = ls_address_x
+        "   iv_x_save    = 'X'
+          TABLES
+            it_adtel     = lt_adtel
+            it_adfax     = lt_fax
+            it_adsmtp    = lt_adsmtp
+            et_return    = lt_return.
+
+        IF is_error( lt_return ).
+          MESSAGE e003(zcrm_int_mess) INTO lv_dummy.
+          append_message( lv_dummy  ).
+          gr_log->add_bapiret_tab( lt_return ).
+          gv_no_save = abap_true.
+        ENDIF.
+
+        CLEAR: lt_adtel, lt_adsmtp, lt_return, lt_fax.
+
+      ELSE. "если адрес с таким guid не найден
+
+        ls_address-country = ls_address_input-country.
+
+        ls_address-region = ls_address_input-region.
+
+        ls_address-city = ls_address_input-city.
+
+        ls_address-postl_cod1 = ls_address_input-postal_code.
+
+        ls_address-street = ls_address_input-street.
+
+        ls_address-house_no = ls_address_input-house.
+
+        ls_address-room_no = ls_address_input-room.
+
+        IF ls_address_input-type EQ zif_addr_types_const=>default."если стандартный адрес пришел на вход
+          ls_address-standardaddress = abap_true.
+
+          READ  TABLE gs_current_partner-address_tab INTO DATA(ls_old_addr)"и он уже есть, но с другим номером
+                  WITH  KEY type = zif_addr_types_const=>default.
+          IF sy-subrc EQ 0.
+            CLEAR lt_return.
+            CALL FUNCTION 'BUPA_ADDRESS_REMOVE'
+              EXPORTING
+                iv_partner      = gs_partner-partner
+                iv_partner_guid = CONV bu_partner_guid( gs_partner-partner_guid )
+                iv_addrguid     = CONV bu_address_guid( ls_old_addr-addr_guid )
+              TABLES
+                et_return       = lt_return.
+            .
+            IF is_error( lt_return ).
+              MESSAGE e015(zcrm_int_mess) INTO lv_dummy.
+              append_message( lv_dummy  ).
+              gr_log->add_bapiret_tab( lt_return ).
+              gv_no_save = abap_true.
+            ENDIF.
+          ENDIF.
+
+        ENDIF.
+
+
+        IF ls_address_input-type EQ zif_addr_types_const=>default."если адрес стандартный
+          LOOP AT  gs_change_data-communications_tab INTO DATA(ls_communications_new).
+            add_addr(
+            EXPORTING
+                             iv_addr_type  = ls_address_input-type
+                             iv_comm_type = ls_communications_new-type
+                             is_address = ls_address
+                             is_communications = ls_communications_new
+            IMPORTING
+                             ev_addr_guid = lv_addr_guid
+            ).
+          ENDLOOP.
+        ELSE."если адрес нестандартный
+
+          add_addr(
+        EXPORTING
+                            iv_addr_type  = ls_address_input-type
+                            is_address = ls_address
+        IMPORTING
+                            ev_addr_guid = lv_addr_guid
+        ).
+        ENDIF.
+
+        IF  lv_addr_guid IS NOT INITIAL.
+*Район добавляем
+          set_bp_address_ext(
+         EXPORTING
+            iv_addr_guid = lv_addr_guid
+            ).
+          ls_addr_reply-addrguid = lv_addr_guid."номер адреса для передачи в ответ
+          APPEND ls_addr_reply TO gt_addr_reply.
+        ENDIF.
+        CLEAR: lt_addrnumber_guid, lt_addruse, lv_addr_guid, ls_address, ls_address_x.
+
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
