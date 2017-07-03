@@ -1,0 +1,34 @@
+ METHOD set_default_value.
+
+    DATA: lr_valuenode TYPE REF TO  if_bol_bo_property_access,
+          lr_znode     TYPE REF TO  if_bol_bo_property_access.
+
+    TRY .
+        lr_valuenode ?= typed_context->header->collection_wrapper->get_current( ).
+        IF lr_valuenode IS BOUND.
+*          Только для физиков
+          IF CONV bu_type( lr_valuenode->get_property_as_string( 'BP_CATEGORY' ) ) EQ zif_partner_main_attr_const=>gs_bp_type-person.
+
+            TRY.
+                IF lr_valuenode->get_property_as_string( 'COUNTRYORIGIN' ) IS INITIAL.
+                  lr_valuenode->set_property_as_string(
+                    EXPORTING
+                      iv_attr_name           = 'COUNTRYORIGIN'    " Component Name
+                      iv_value               = 'UZ'
+                  ).
+                ENDIF.
+                IF lr_valuenode->get_property_as_string( 'CORRESPONDLANGUAGE' ) IS INITIAL.
+                  lr_valuenode->set_property_as_string(
+                  EXPORTING
+                    iv_attr_name           = 'CORRESPONDLANGUAGE'    " Component Name
+                    iv_value               = 'ZF'
+                ).
+                ENDIF.
+              CATCH cx_sy_conversion_error.    "
+            ENDTRY.
+          ENDIF.
+        ENDIF.
+      CATCH cx_root.
+*        ничего не делаем, пропускаем заполнение
+    ENDTRY.
+  ENDMETHOD.
