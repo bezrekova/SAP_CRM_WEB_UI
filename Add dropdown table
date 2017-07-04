@@ -1,0 +1,49 @@
+METHOD get_v_zzcollateral.
+  DATA:
+    lt_ddlb_data TYPE bsp_wd_dropdown_table,
+    ls_ddlb_data TYPE bsp_wd_dropdown_line,
+    lr_dropdow   TYPE REF TO cl_crm_uiu_ddlb.
+
+  " получаем все записи из видов обеспечения
+
+  SELECT code, description
+    FROM ztx_collat_code
+    INTO TABLE @DATA(lt_collat_code).
+
+  " пусто
+  CLEAR ls_ddlb_data.
+  ls_ddlb_data-key = ''.
+  ls_ddlb_data-value = ''.
+  APPEND ls_ddlb_data TO lt_ddlb_data.
+
+  LOOP AT lt_collat_code ASSIGNING FIELD-SYMBOL(<lf_collat_code>).
+    CLEAR ls_ddlb_data.
+    ls_ddlb_data-key = <lf_collat_code>-code.
+    ls_ddlb_data-value = <lf_collat_code>-description.
+    APPEND ls_ddlb_data TO lt_ddlb_data.
+  ENDLOOP.
+
+  IF lt_ddlb_data IS NOT INITIAL.
+    TRY.
+        CREATE OBJECT lr_dropdow
+          EXPORTING
+            iv_source_type = 'T'.
+
+        lr_dropdow->set_selection_table( it_selection_table = lt_ddlb_data ).
+
+        rv_valuehelp_descriptor = lr_dropdow.
+      CATCH cx_root.
+    ENDTRY.
+  ENDIF.
+ENDMETHOD.
+
+METHOD get_p_zzcollateral.
+
+  CASE iv_property.
+    WHEN if_bsp_wd_model_setter_getter=>fp_fieldtype.
+      rv_value = cl_bsp_dlc_view_descriptor=>field_type_picklist.
+*    WHEN if_bsp_wd_model_setter_getter=>fp_onclick.
+*      rv_value = 'PODR'.
+  ENDCASE.
+
+ENDMETHOD.
