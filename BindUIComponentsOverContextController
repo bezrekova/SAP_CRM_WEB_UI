@@ -1,0 +1,21 @@
+ METHOD wd_usage_initialize.
+
+    CALL METHOD super->wd_usage_initialize
+      EXPORTING
+        iv_usage = iv_usage.
+
+*    CHECK 1 EQ 2.
+    TRY.
+        CASE iv_usage->usage_name.
+          WHEN 'CuCollateral'.
+
+            CALL METHOD iv_usage->bind_context_node
+              EXPORTING
+                iv_controller_type  = cl_bsp_wd_controller=>co_type_component
+                iv_target_node_name = 'BTADMINI'                "#EC NOTEXT
+                iv_node_2_bind      = 'PARENT'.                 "#EC NOTEXT
+        ENDCASE.
+      CATCH cx_root INTO DATA(lr_root).
+    ENDTRY.
+
+  ENDMETHOD.
