@@ -1,0 +1,49 @@
+  
+"Register event listner
+METHOD do_view_init_on_activation.
+    DATA : lr_event_srv        TYPE REF TO if_crm_ic_event_srv.
+
+    CALL METHOD super->do_view_init_on_activation.
+
+*    CHECK 1 EQ 2.
+    TRY .
+        lr_event_srv  =  cl_crm_ic_services=>get_event_srv_instance( ).
+        lr_event_srv->subscribe( event_name = cl_crm_ic_interaction_manager=>event_interaction_end_request
+                                  listener   = me
+                                  prio       = '1').
+      CATCH cx_root INTO DATA(lr_error).
+
+    ENDTRY.
+
+
+  ENDMETHOD.
+  
+  "hangle event here
+ METHOD if_crm_ic_event_listener~handle_event."in view class
+
+    DATA : lr_entity   TYPE REF TO cl_crm_bol_entity.
+    DATA : lr_tx       TYPE REF TO if_bol_transaction_context.
+    DATA:  lv_guid   TYPE crmt_object_guid.
+    DATA : lr_core TYPE REF TO cl_crm_bol_core.
+    DATA : lr_comp TYPE REF TO zl_iccmp_bt_bspwdcompone5_impl.
+
+    TRY.
+        CASE event->get_name( ).
+          WHEN cl_crm_ic_interaction_manager=>event_interaction_end_request.
+            lr_comp ?= me->comp_controller.
+            IF lr_comp IS BOUND.
+              lr_entity ?= lr_comp->typed_context->btadminh->collection_wrapper->get_current( ).
+              CHECK lr_entity IS BOUND.
+              DATA(lr_statusset) =  lr_entity->get_related_entities( iv_relation_name = 'BTHeaderStatusSet' ).
+              DATA(lr_status) = lr_statusset->get_current( )->get_related_entities( iv_relation_name = 'BTStatusHAll' ).
+              lr_status->get_current( )->set_property_as_string( iv_attr_name = 'ACT_STATUS' iv_value = 'E0007' ).
+          
+
+            ENDIF.
+
+        ENDCASE.
+
+      CATCH cx_root INTO DATA(lr_error).
+    ENDTRY.
+
+  ENDMETHOD.
