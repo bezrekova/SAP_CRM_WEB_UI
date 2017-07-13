@@ -1,0 +1,57 @@
+DATA(lv_user) = sy-uname.
+
+    CALL FUNCTION 'BP_CENTRALPERSON_GET'
+      EXPORTING
+        iv_username         = lv_user
+      IMPORTING
+        ev_bu_partner_guid  = lv_bu_partner_guid
+      EXCEPTIONS
+        no_central_person   = 1
+        no_business_partner = 2
+        no_id               = 3
+        OTHERS              = 4...
+получить дп сотрудника
+*  получаем орг структуру куда привязан пользователь
+    cl_crm_ppm_um_toolkit=>get_assignments_of_user(
+      EXPORTING
+        iv_user          =  lv_user   " User Name
+        iv_read_root_org = ' '    " Logical Variable
+      IMPORTING
+        et_assignments   =  lt_assignments  " Assignments of User to OrgModel
+        et_messages      =  et_return " Return parameter table
+      EXCEPTIONS
+        error            = 1
+        OTHERS           = 2
+    ).
+    IF sy-subrc NE 0.
+
+    ENDIF.
+в lt_assignments  будут орг структуры
+получение вышестоящей орг структуры   cl_crm_ppm_um_toolkit=>get_higherup_orgunits(
+          EXPORTING
+            iv_orgunit  = CONV objektid( ls_assigments-orgunit )
+          IMPORTING
+            et_orgunits = lt_orgunits    " List of Object IDs
+          EXCEPTIONS
+            error       = 1
+            OTHERS      = 2     ).
+
+CRMC_DISTCHAN_T - distribution channel CRMC_DISTCHAN_T CRMST_OMIL_ORGEMP
+CRMV_DISTCHAN_MD
+ BBP_OM_DIALOG_ATTRIBUTES_INIT
+ BBP_OM_DIALOG_ATTRIBUTES_SAVE
+ CRM_OM_DIALOG_ATTRIBUTES_INIT
+ CRM_OM_DIALOG_ATTRIBUTES_SAVE
+ HR_GENAT_DIALOG_ATTRIBUTES_GE
+ HR_GENAT_DIALOG_ATTRIBUTES_TX
+ HR_GENAT_DIALOG_SUBSC_PAI
+ HR_GENAT_DIALOG_SUBSC_PBO
+ HR_GENAT_READ_ATTRIBUTES
+ RHGA_CHECK_ATTRIBUTES
+ RHGA_READ_ATTRIBUTES
+ RHGA_READ_ATTRIBUTES_EXT
+ RHGA_READ_ATTRIBUTES_LOCAL
+ RHGA_READ_ATTRIBUTES_SET
+ RHGA_SCEN_GET_ATTRIBS
+ RHGA_SCEN_GET_ATTRIBS_DDIC
+ RHGA_WRITE_ATTRIBUTES
