@@ -1,0 +1,150 @@
+TRY .
+        DATA(lv_user) = sy-uname.
+        DATA(lv_channel) = zcl_zzobjective_help=>get_channel( iv_user = lv_user )."получаем канал сбыта
+
+        IF lv_channel IS NOT INITIAL AND lr_activityh IS BOUND.
+          lr_activityh->set_property_as_string( iv_attr_name = 'OBJECTIVE' iv_value = CONV string( lv_channel ) ).
+        ENDIF.
+      CATCH cx_root INTO DATA(lr_error).
+
+    ENDTRY.
+    
+    class ZCL_ZZOBJECTIVE_HELP definition
+  public
+  final
+  create public .
+
+public section.
+
+  class-methods GET_CHANNEL
+    importing
+      !IV_USER type SY-UNAME
+    returning
+      value(RV_CHANEL) type CRMT_OBJECTIVE .
+protected section.
+private section.
+ENDCLASS.
+
+
+
+CLASS ZCL_ZZOBJECTIVE_HELP IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_ZZOBJECTIVE_HELP=>GET_CHANNEL
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_USER                        TYPE        SY-UNAME
+* | [<-()] RV_CHANEL                      TYPE        CRMT_OBJECTIVE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_channel.
+
+    DATA: lv_partner_guid     TYPE bu_partner_guid,
+          lv_partner_guid2    TYPE bu_partner_guid,
+          lt_return           TYPE bapiret2_t,
+          lt_assignments      TYPE crmt_ppm_om_user_assignmnts_ta,
+          lt_assignments_full TYPE crmt_ppm_om_user_assignmnts_ta,
+          lt_orgunits         TYPE crmt_ppm_om_objektid_ta,
+          lv_virtuser         TYPE sobjid,
+          lv_unit_text        TYPE stext.
+    DATA: lt_values     TYPE hrtb_attvalrt,
+          lt_attributes TYPE hrtb_attrib,
+          lv_chanel     TYPE crmt_objective.
+
+
+    DATA(lv_user) = iv_user."sy-uname.
+
+
+**получить дп сотрудника
+    CALL FUNCTION 'BP_CENTRALPERSON_GET'
+      EXPORTING
+        iv_username         = lv_user
+      IMPORTING
+        ev_bu_partner_guid  = lv_partner_guid2
+      EXCEPTIONS
+        no_central_person   = 1
+        no_business_partner = 2
+        no_id               = 3
+        OTHERS              = 4.
+    IF sy-subrc <> 0.
+
+    ENDIF.
+
+*  получаем орг структуру куда привязан пользователь
+    CLEAR: lt_return.
+    CALL METHOD cl_crm_ppm_um_toolkit=>get_assignments_of_user
+      EXPORTING
+        iv_user          = lv_user
+        iv_read_root_org = 'X'
+      IMPORTING
+        et_assignments   = lt_assignments
+        et_messages      = lt_return
+      EXCEPTIONS
+        error            = 1
+        OTHERS           = 2.
+    IF sy-subrc <> 0.
+*     Implement suitable error handling here
+    ENDIF.
+
+
+*получение атрибутов орг структуры
+    LOOP AT lt_assignments INTO DATA(ls_assignments) .
+      CLEAR: lt_return, lt_values.
+      cl_crm_orgman_interface=>read_attributes_for_maint(
+        EXPORTING
+          scenario          =   'SALE'  " Scenario
+          otype             =   'O'  " Object Type
+          objid             =  ls_assignments-orgunit   " Object ID
+          attributes        =  lt_attributes
+        IMPORTING
+          values            =  lt_values   " Table: Attributes of an Object (Inherited)
+        EXCEPTIONS
+          internal_error    = 1
+          invalid_object    = 2
+          invalid_scenario  = 3
+          invalid_attribute = 4
+          no_authority      = 5
+          OTHERS            = 6
+      ).
+      IF sy-subrc <> 0.
+      ENDIF.
+
+      READ TABLE lt_values ASSIGNING FIELD-SYMBOL(<fs_attr>) WITH KEY attrib = 'D_CHANNEL' inherit = 'X'.
+
+      IF sy-subrc EQ 0.
+        SELECT objective FROM ztc_slschannel
+     INTO @lv_chanel WHERE
+     objid  = @ls_assignments-orgunit .
+        ENDSELECT.
+      ELSE.
+        CLEAR: lt_values, lv_chanel.
+        cl_crm_orgman_interface=>read_attributes_for_maint(
+      EXPORTING
+        scenario          =   'SALE'  " Scenario
+        otype             =   'O'  " Object Type
+        objid             =  ls_assignments-root_orgunit   " Object ID
+        attributes        =  lt_attributes
+      IMPORTING
+        values            =  lt_values   " Table: Attributes of an Object (Inherited)
+      EXCEPTIONS
+        internal_error    = 1
+        invalid_object    = 2
+        invalid_scenario  = 3
+        invalid_attribute = 4
+        no_authority      = 5
+        OTHERS            = 6
+    ).
+        IF sy-subrc <> 0.
+
+        ENDIF.
+        READ TABLE lt_values INTO DATA(ls_attr) WITH KEY attrib = 'D_CHANNEL' inherit = 'X'.
+        IF sy-subrc EQ 0.
+          SELECT objective FROM ztc_slschannel
+       INTO @lv_chanel WHERE
+       objid  = @ls_assignments-orgunit.
+          ENDSELECT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    rv_chanel = lv_chanel.
+  ENDMETHOD.
+ENDCLASS.
