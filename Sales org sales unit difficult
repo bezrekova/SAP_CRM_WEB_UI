@@ -1,0 +1,116 @@
+"**** Определение сбытовой организации
+        "* Присвоения пользователя
+        DATA: lt_assignments TYPE crmt_ppm_om_user_assignmnts_ta.
+
+        cl_crm_ppm_um_toolkit=>get_assignments_of_user(
+          EXPORTING
+            iv_user          = sy-uname
+          IMPORTING
+            et_assignments   = lt_assignments
+          EXCEPTIONS
+            error            = 1
+            OTHERS           = 2
+        ).
+
+        CHECK lt_assignments IS NOT INITIAL.
+
+        DATA: lt_result_objec TYPE TABLE OF objec.
+        CALL FUNCTION 'RH_STRUC_GET'
+          EXPORTING
+            act_otype    = 'S'
+            act_objid    = lt_assignments[ 1 ]-oposition
+            act_wegid    = 'A*'
+          TABLES
+            result_objec = lt_result_objec
+          EXCEPTIONS
+            OTHERS       = 3.
+
+        "* Тип оператора
+        DATA: lv_sales_group_prefix TYPE string,
+              lv_ic_prefix          TYPE string,
+              lt_ic_prefix          TYPE TABLE OF string,
+              lt_group_prefix       TYPE TABLE OF string.
+
+        lv_sales_group_prefix = zcl_ic_params=>get_tvarvc_param('SALEG_GROUP_OPER_PREFIX').
+        lv_ic_prefix = zcl_ic_params=>get_tvarvc_param('CONTACT_CENTER_OPER_PREFIX').
+
+        SPLIT lv_ic_prefix AT ';' INTO TABLE lt_ic_prefix.
+        SPLIT lv_sales_group_prefix AT ';' INTO TABLE lt_group_prefix.
+
+        "•  OKBG – Оператор клиентской базы группы продаж
+        LOOP AT lt_group_prefix ASSIGNING FIELD-SYMBOL(<gr_prefix>).
+          LOOP AT lt_result_objec TRANSPORTING NO FIELDS WHERE short CP <gr_prefix>.
+            gv_operator_type = 'sales_group'.
+          ENDLOOP.
+        ENDLOOP.
+
+        "•  OKBC – Оператор клиентской базы группы продаж
+        LOOP AT lt_ic_prefix ASSIGNING FIELD-SYMBOL(<ic_prefix>).
+          LOOP AT lt_result_objec TRANSPORTING NO FIELDS WHERE short CP <ic_prefix>.
+            gv_operator_type = 'ic'.
+          ENDLOOP.
+        ENDLOOP.
+
+
+        "сбытовая организация
+        "* Сбытовая организация
+        DATA: lt_values     TYPE hrtb_attvalrt,
+              lt_attributes TYPE hrtb_attrib.
+
+        cl_crm_orgman_interface=>read_attributes_for_maint(
+          EXPORTING
+            scenario          = 'SALE'
+            otype             = 'O'
+            objid             = lt_assignments[ 1 ]-orgunit
+            attributes        = lt_attributes "VALUE #( ( ) ) "( ( 'IS_SA_ORG ') ( 'R3_SA_ORG' ) ( 'SA_ORG' ) )
+*        sel_date          =     " Key Date
+          IMPORTING
+            values            = lt_values
+          EXCEPTIONS
+            OTHERS            = 6
+        ).
+
+        CHECK sy-subrc = 0.
+        CHECK line_exists( lt_values[ attrib = 'SA_ORG' ] ).
+
+        DELETE lt_values WHERE excluded = abap_true.
+
+        DATA(lv_sales_org) = lt_values[ attrib = 'SA_ORG' ]-low.
+
+        gv_sales_org = lv_sales_org.
+
+        "* определение канала и сектора
+        DATA(lv_so_num) = 0.
+        LOOP AT lt_values ASSIGNING FIELD-SYMBOL(<attrib>) WHERE attrib = 'CHAN_DIV'.
+          DATA(lv_channel) = <attrib>-low(2).
+          DATA(lv_division) = <attrib>-low+2.
+
+          lv_so_num = lv_so_num + 1.
+
+          IF lv_so_num > 1. "выбор предоставляется пользователю
+            CLEAR gv_sales_org.
+            EXIT.
+          ENDIF.
+
+          gv_channel = lv_channel.
+          gv_division = lv_division.
+
+        ENDLOOP.
+
+        "отдел сбыта
+        TRY.
+            gv_sales_office = lt_values[ attrib = 'SA_OFFICE' ]-low.
+          CATCH cx_root.
+        ENDTRY.
+
+        "группа продаж
+        IF line_exists( lt_values[ attrib = 'IS_SA_GRP' ] ).
+          IF lt_values[ attrib = 'IS_SA_GRP' ]-low = abap_true.
+            TRY.
+                gv_sales_group = lt_values[ attrib = 'SA_GROUP' ]-low.
+              CATCH cx_root.
+            ENDTRY.
+          ENDIF.
+        ENDIF.
+близкий по смыслу пример
+как по юзеру организацию искать
