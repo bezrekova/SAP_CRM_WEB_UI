@@ -1,0 +1,368 @@
+*&---------------------------------------------------------------------*
+*& Report ZREP_OKED
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zrep_oked.
+
+TYPES: BEGIN OF ls_ddic,
+         section_gr     TYPE zdt_oked_section_gr,
+         section_gr_txt TYPE zdt_oked_section_gr_txt,
+         zsection       TYPE zdt_oked_section,
+         zsection_txt   TYPE zdt_oked_section_txt,
+         groups         TYPE zdt_oked_groups,
+         groups_txt     TYPE zdt_oked_groups_txt,
+         class          TYPE zdt_oked_class,
+         class_txt      TYPE zdt_oked_class_txt,
+         code           TYPE zdt_oked_code,
+         code_txt       TYPE zdt_oked_code_txt,
+         active         TYPE c,
+       END OF ls_ddic.
+
+TYPES: BEGIN OF ls_sec_gr,
+         section_gr  TYPE zdt_oked_section_gr,
+         description TYPE zdt_oked_section_gr_txt,
+       END OF ls_sec_gr.
+
+TYPES: BEGIN OF ls_section,
+         zsection    TYPE zdt_oked_section,
+         description TYPE zdt_oked_section_txt,
+       END OF ls_section.
+TYPES: BEGIN OF ls_groups,
+         groups      TYPE zdt_oked_groups,
+         description TYPE zdt_oked_groups_txt,
+       END OF ls_groups.
+
+TYPES: BEGIN OF ls_class,
+         class       TYPE zdt_oked_class,
+         description TYPE zdt_oked_class_txt,
+       END OF ls_class.
+
+TYPES: BEGIN OF ls_code,
+         code        TYPE zdt_oked_code,
+         description TYPE zdt_oked_code_txt,
+       END OF ls_code.
+
+DATA: lt_upload_data TYPE STANDARD TABLE OF ls_ddic.
+
+
+DATA: lt_sec_gr  TYPE STANDARD TABLE OF ls_sec_gr,
+      lt_section TYPE STANDARD TABLE OF ls_section,
+      lt_groups  TYPE STANDARD TABLE OF ls_groups,
+      lt_class   TYPE STANDARD TABLE OF ls_class,
+      lt_code    TYPE STANDARD TABLE OF ls_code.
+
+DATA: lt_ztd_oked_sgr_sec TYPE TABLE OF ztd_oked_sgr_sec,
+      lt_ztd_oked_sec_grp TYPE TABLE OF ztd_oked_sec_grp,
+      lt_ztd_oked_grp_cl  TYPE TABLE OF ztd_oked_grp_cl,
+      lt_ztd_oked_cl_code TYPE TABLE OF ztd_oked_cl_code.
+
+DATA:lv_text TYPE string.
+FIELD-SYMBOLS: <fs_str> TYPE any.
+
+*general table
+PERFORM read_file_to_itab USING 'D:\ПроектСправочник\dictionary2.dat'
+     CHANGING  lt_upload_data .
+
+
+*--------------------------------Fill ZTC* and ZTX*------------------------------------*
+DATA: lt_ztc_oked_sec_gr  TYPE STANDARD TABLE OF ztc_oked_sec_gr,
+      lt_ztx_oked_sec_gr  TYPE STANDARD TABLE OF  ztx_oked_sec_gr,
+      ls_ztx_oked_sec_gr  TYPE ztx_oked_sec_gr,
+      lt_ztc_oked_section TYPE STANDARD TABLE OF ztc_oked_section,
+      lt_ztx_oked_section TYPE STANDARD TABLE OF ztx_oked_section.
+
+DATA: lt_ztc_oked_groups TYPE STANDARD TABLE OF ztc_oked_groups,
+      lt_ztx_oked_groups TYPE STANDARD TABLE OF ztx_oked_groups,
+      lt_ztc_oked_class  TYPE STANDARD TABLE OF ztc_oked_class,
+      lt_ztx_oked_class  TYPE STANDARD TABLE OF ztx_oked_class,
+      lt_ztc_oked_code   TYPE STANDARD TABLE OF ztc_oked_code,
+      lt_ztx_oked_code   TYPE STANDARD TABLE OF ztx_oked_code.
+*sec_gr
+lt_sec_gr = CORRESPONDING #( lt_upload_data  MAPPING section_gr = section_gr
+                                                    description = section_gr_txt ).
+
+DELETE ADJACENT DUPLICATES FROM lt_sec_gr.
+SORT lt_sec_gr BY section_gr.
+cl_demo_output=>display( lt_sec_gr ).
+
+MOVE-CORRESPONDING lt_sec_gr TO lt_ztc_oked_sec_gr.
+MOVE-CORRESPONDING lt_sec_gr TO lt_ztx_oked_sec_gr.
+
+TRY .
+    DELETE FROM ztx_oked_sec_gr.
+    DELETE FROM ztc_oked_sec_gr.
+    COMMIT WORK.
+    INSERT ztx_oked_sec_gr FROM TABLE lt_ztx_oked_sec_gr.
+    UPDATE ztx_oked_sec_gr SET spras = syst-langu.
+    INSERT ztc_oked_sec_gr  FROM TABLE lt_ztc_oked_sec_gr .
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref).
+    lv_text = oref->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+**section
+lt_section = CORRESPONDING #( lt_upload_data MAPPING zsection = zsection
+                                                    description = zsection_txt ).
+SORT lt_section BY zsection.
+DELETE ADJACENT DUPLICATES FROM lt_section.
+cl_demo_output=>display( lt_section ).
+MOVE-CORRESPONDING lt_section TO lt_ztc_oked_section.
+MOVE-CORRESPONDING lt_section TO lt_ztx_oked_section.
+TRY .
+
+    DELETE FROM ztx_oked_section.
+    DELETE FROM ztc_oked_section.
+    COMMIT WORK.
+    INSERT ztx_oked_section FROM TABLE lt_ztx_oked_section.
+    UPDATE ztx_oked_section SET spras = syst-langu.
+    INSERT ztc_oked_section FROM TABLE lt_ztc_oked_section.
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref_2).
+    lv_text = oref_2->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+lt_groups = CORRESPONDING #( lt_upload_data MAPPING groups = groups
+                                                    description = groups_txt ).
+SORT lt_groups BY groups.
+DELETE ADJACENT DUPLICATES FROM lt_groups.
+cl_demo_output=>display( lt_groups  ).
+MOVE-CORRESPONDING  lt_groups  TO lt_ztc_oked_groups.
+MOVE-CORRESPONDING  lt_groups  TO lt_ztx_oked_groups.
+TRY .
+    DELETE FROM ztx_oked_groups.
+    DELETE FROM ztc_oked_groups.
+    COMMIT WORK.
+    INSERT ztx_oked_groups  FROM TABLE lt_ztx_oked_groups .
+    UPDATE ztx_oked_groups  SET spras = syst-langu.
+    INSERT ztc_oked_groups FROM TABLE lt_ztc_oked_groups .
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref_5).
+    lv_text = oref_5->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+*class
+lt_class = CORRESPONDING #( lt_upload_data MAPPING class = class
+                                                   description = class_txt ).
+SORT lt_class BY class.
+DELETE ADJACENT DUPLICATES FROM lt_class.
+cl_demo_output=>display( lt_class  ).
+MOVE-CORRESPONDING  lt_class  TO lt_ztc_oked_class.
+MOVE-CORRESPONDING  lt_class  TO lt_ztx_oked_class.
+TRY .
+    DELETE FROM ztx_oked_class.
+    DELETE FROM ztc_oked_class.
+    COMMIT WORK.
+    INSERT ztx_oked_class  FROM TABLE lt_ztx_oked_class .
+    UPDATE ztx_oked_class  SET spras = syst-langu.
+    INSERT ztc_oked_class FROM TABLE lt_ztc_oked_class .
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref_3).
+    lv_text = oref_3->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+*code
+lt_code = CORRESPONDING #( lt_upload_data MAPPING code = code
+                                                 description = code_txt ).
+SORT lt_code BY code.
+DELETE ADJACENT DUPLICATES FROM lt_code.
+cl_demo_output=>display( lt_class  ).
+MOVE-CORRESPONDING  lt_code  TO lt_ztc_oked_code.
+MOVE-CORRESPONDING  lt_code  TO lt_ztx_oked_code.
+TRY .
+    DELETE FROM ztx_oked_code.
+    DELETE FROM ztc_oked_code.
+    COMMIT WORK.
+    INSERT ztx_oked_code  FROM TABLE lt_ztx_oked_code .
+    UPDATE ztx_oked_code SET spras = syst-langu.
+    INSERT ztc_oked_code FROM TABLE lt_ztc_oked_code .
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref_4).
+    lv_text = oref_4->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+
+*-----------------------ZTD tables filling---------------------------------------------*
+MOVE-CORRESPONDING lt_upload_data TO lt_ztd_oked_sgr_sec.
+SORT lt_ztd_oked_sgr_sec BY zsection.
+DELETE ADJACENT DUPLICATES FROM lt_ztd_oked_sgr_sec COMPARING zsection.
+cl_demo_output=>display( lt_ztd_oked_sgr_sec ).
+
+MOVE-CORRESPONDING lt_upload_data TO lt_ztd_oked_sec_grp.
+SORT lt_ztd_oked_sec_grp BY groups.
+DELETE ADJACENT DUPLICATES FROM lt_ztd_oked_sec_grp COMPARING groups.
+cl_demo_output=>display( lt_ztd_oked_sec_grp ).
+
+MOVE-CORRESPONDING lt_upload_data TO lt_ztd_oked_grp_cl.
+SORT lt_ztd_oked_grp_cl BY class.
+DELETE ADJACENT DUPLICATES FROM lt_ztd_oked_grp_cl COMPARING class.
+cl_demo_output=>display( lt_ztd_oked_grp_cl ).
+
+MOVE-CORRESPONDING lt_upload_data TO lt_ztd_oked_cl_code.
+SORT lt_ztd_oked_cl_code BY code.
+DELETE ADJACENT DUPLICATES FROM lt_ztd_oked_cl_code COMPARING code.
+cl_demo_output=>display( lt_ztd_oked_cl_code ).
+
+
+TRY .
+
+    DELETE FROM ztd_oked_sgr_sec.
+    COMMIT WORK.
+    INSERT ztd_oked_sgr_sec FROM TABLE lt_ztd_oked_sgr_sec.
+    COMMIT WORK.
+  CATCH  cx_root INTO oref.
+    lv_text = oref->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+TRY .
+    DELETE FROM ztd_oked_sec_grp.
+    INSERT ztd_oked_sec_grp FROM TABLE lt_ztd_oked_sec_grp.
+
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref1).
+    lv_text = oref1->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+TRY .
+    DELETE FROM ztd_oked_grp_cl.
+    INSERT ztd_oked_grp_cl FROM TABLE lt_ztd_oked_grp_cl.
+
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref2).
+    lv_text = oref2->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+TRY .
+    DELETE FROM ztd_oked_cl_code.
+    INSERT ztd_oked_cl_code FROM TABLE lt_ztd_oked_cl_code.
+
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref3).
+    lv_text = oref3->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+
+*form to write manually path to file
+FORM read_file_to_itab
+  USING lv_path TYPE string
+  CHANGING  it_tab TYPE STANDARD TABLE.
+
+
+*Upload the file
+  CALL METHOD cl_gui_frontend_services=>gui_upload
+    EXPORTING
+      filename                = lv_path " file with .dat file extension required
+      filetype                = 'ASC'
+      has_field_separator     = 'X'
+    CHANGING
+      data_tab                = it_tab
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      not_supported_by_gui    = 17
+      error_no_gui            = 18
+      OTHERS                  = 19.
+  IF sy-subrc <> 0.
+    RAISE file_error.
+  ENDIF.
+
+ENDFORM.
+
+
+*form with file dialog opening
+FORM read_file_with_dialog
+    CHANGING  it_tab TYPE STANDARD TABLE.
+
+
+  DATA : lt_file_table TYPE filetable,
+         lv_rc         TYPE i.
+
+  DATA: lv_filename TYPE string.
+
+*   Call popup for selecting the file
+* file with .dat file extension required
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    CHANGING
+      file_table              = lt_file_table
+      rc                      = lv_rc
+    EXCEPTIONS
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      OTHERS                  = 5.
+  IF sy-subrc <> 0.
+    RAISE import_error.
+  ELSE.
+    READ TABLE lt_file_table INTO lv_filename INDEX 1.
+    IF sy-subrc <> 0.
+      RAISE import_error.
+    ENDIF.
+  ENDIF.
+
+*Upload the file
+  CALL METHOD cl_gui_frontend_services=>gui_upload
+    EXPORTING
+      filename                = lv_filename
+      filetype                = 'ASC'
+      has_field_separator     = 'X'
+    CHANGING
+      data_tab                = it_tab
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      not_supported_by_gui    = 17
+      error_no_gui            = 18
+      OTHERS                  = 19.
+  IF sy-subrc <> 0.
+    RAISE file_error.
+  ENDIF.
+
+
+ENDFORM.
