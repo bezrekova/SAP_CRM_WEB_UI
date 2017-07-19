@@ -1,0 +1,151 @@
+  METHOD set_industry_code.
+
+    DATA: lt_return TYPE bapiret2_t,
+          ls_return TYPE bapiret2.
+    DATA: lt_longtext     TYPE  comt_text_textdata_t,
+          lt_longtext_new TYPE    comt_text_lines_t,
+          lt_lines        TYPE TABLE OF tline.
+
+    DATA:lv_indcode TYPE string,
+         lv_delete  TYPE abap_bool,
+         lv_insert  TYPE abap_bool,
+         ls_header2 TYPE thead.
+
+    DATA: ls_header TYPE thead.
+
+    CALL FUNCTION 'BUPA_LONGTEXT_READ'
+      EXPORTING
+        iv_partner  = gs_partner-partner
+*       IV_PARTNER_GUID       =
+      IMPORTING
+        et_longtext = lt_longtext
+*       ET_TEXTID_DESCR       =
+      .
+
+    READ TABLE lt_longtext INTO DATA(ls_longtext) WITH  KEY stxh-tdid = zif_partner_main_attr_const=>gs_text_type-industry_code.
+    IF sy-subrc EQ 0.
+      CALL FUNCTION 'CONV_ITF_TO_TEXTSTRING'
+        EXPORTING
+          it_itf        = ls_longtext-lines    " Text Lines
+        IMPORTING
+          ev_textstring = lv_indcode.
+
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+*         CLIENT                  = SY-MANDT
+          id                      = zif_partner_main_attr_const=>gs_text_type-industry_code
+          language                = sy-langu
+          name                    = ls_longtext-stxh-tdname
+          object                  = ls_longtext-stxh-tdobject
+*         ARCHIVE_HANDLE          = 0
+*         LOCAL_CAT               = ' '
+        IMPORTING
+          header                  = ls_header
+*         OLD_LINE_COUNTER        =
+        TABLES
+          lines                   = lt_lines
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+      IF sy-subrc EQ 0.
+        IF lt_lines IS NOT INITIAL.
+          lv_delete = abap_true.
+        ENDIF.
+        lv_insert = abap_true. " create new
+
+        ls_header2-tdid = zif_partner_main_attr_const=>gs_text_type-industry_code.
+        ls_header2-tdspras = sy-langu.
+        ls_header2-tdname = ls_longtext-stxh-tdname.
+        ls_header2-tdobject = ls_longtext-stxh-tdobject.
+        ls_header2-tdform = ls_longtext-stxh-tdform.
+      ELSE.
+        MESSAGE e003(zcrm_int_mess)  INTO DATA(lv_dummy).
+        append_message( lv_dummy  ).
+        gr_log->add_sy( ).
+        gv_no_save = abap_true.
+      ENDIF.
+    ELSE.
+      lv_insert = abap_true. " create new
+      ls_header2-tdid = zif_partner_main_attr_const=>gs_text_type-industry_code.
+      ls_header2-tdspras = sy-langu.
+      ls_header2-tdname = gs_partner-partner.
+      ls_header2-tdobject = 'BUT000'.
+    ENDIF.
+
+    CALL FUNCTION 'CONV_TEXTSTRING_TO_ITF'
+      EXPORTING
+        iv_textstring = gs_change_data-org_data-industry_code
+      IMPORTING
+        et_itf        = lt_longtext_new.
+
+    IF lv_delete EQ abap_true.
+
+      CALL FUNCTION 'DELETE_TEXT'
+        EXPORTING
+*         CLIENT    = SY-MANDT
+          id        = ls_header-tdid
+          language  = ls_header-tdspras
+          name      = ls_header-tdname
+          object    = ls_header-tdobject
+*         savemode_direct = 'X'
+        EXCEPTIONS
+          not_found = 1
+          OTHERS    = 2.
+
+      IF sy-subrc <> 0.
+        MESSAGE e003(zcrm_int_mess) WITH sy-subrc INTO DATA(lv_dummy1).
+        append_message( lv_dummy1  ).
+        gr_log->add_sy( ).
+        gv_no_save = abap_true.
+        RETURN.
+      ENDIF.
+
+    ENDIF.
+
+    IF lv_insert EQ abap_true.
+      CALL FUNCTION 'SAVE_TEXT'
+        EXPORTING
+*         CLIENT   = SY-MANDT
+          header   = ls_header2
+          insert   = lv_insert
+*         savemode_direct = 'X'
+        TABLES
+          lines    = lt_longtext_new
+        EXCEPTIONS
+          id       = 1
+          language = 2
+          name     = 3
+          object   = 4
+          OTHERS   = 5.
+
+      IF sy-subrc <> 0.
+        MESSAGE e003(zcrm_int_mess) WITH sy-subrc INTO DATA(lv_dummy2).
+        append_message( lv_dummy2  ).
+        gr_log->add_sy( ).
+        gv_no_save = abap_true.
+      ELSE.
+
+        CALL FUNCTION 'COMMIT_TEXT'
+          EXPORTING
+            object          = ls_header2-tdobject
+            name            = ls_header2-tdname
+            id              = ls_header2-tdid
+            language        = ls_header2-tdspras
+            savemode_direct = ' '.
+
+        IF sy-subrc NE 0.
+          MESSAGE e003(zcrm_int_mess) WITH sy-subrc INTO DATA(lv_dummy3).
+          append_message( lv_dummy3  ).
+          gr_log->add_sy( ).
+          gv_no_save = abap_true.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+  ENDMETHOD.
