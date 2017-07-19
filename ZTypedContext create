@@ -1,0 +1,11 @@
+ method WD_CREATE_CONTEXT.
+*   create the context
+    context = cl_bsp_wd_context=>get_instance(
+          iv_controller = me
+          iv_type = 'ZL_BT108H_L_LEADOVVIEWSET_CTXT' ).
+
+    typed_context ?= context.
+
+* Added by wizard
+   ztyped_context ?= context.
+  endmethod.
