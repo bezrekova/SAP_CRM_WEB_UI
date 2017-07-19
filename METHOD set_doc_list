@@ -1,0 +1,124 @@
+  METHOD set_doc_list.
+
+    DATA:
+      lr_coll_wrapp TYPE REF TO cl_bsp_wd_collection_wrapper,
+      lr_cmbusobj   TYPE REF TO cl_crm_bol_entity,
+      lr_doclist    TYPE REF TO if_bol_bo_property_access,
+      is_bo         TYPE sibflporb,
+      ls_bo         TYPE sibflporb,
+      ls_doc_bo     TYPE sibflporb,
+      lv_object_id  TYPE saeobjid,
+      lv_sap_object TYPE saeanwdid,
+      lt_result     TYPE TABLE OF ztd_toa01,
+      lt_ar_object  TYPE TABLE OF toaom,
+      lv_date       TYPE syst_datlo,
+      lv_time       TYPE syst_timlo.
+
+    CALL METHOD super->set_doc_list.
+
+    " RADCHENKO
+    TRY.
+        " получаем данные для передачи
+        lr_cmbusobj ?= me->typed_context->cmbusobj->collection_wrapper->get_current( ).
+        DATA(lv_instid) = lr_cmbusobj->get_property_as_string( iv_attr_name = 'INSTID' ).
+        DATA(lv_typeid) = lr_cmbusobj->get_property_as_string( iv_attr_name = 'TYPEID' ).
+        DATA(lv_catid) = lr_cmbusobj->get_property_as_string( iv_attr_name = 'CATID' ).
+
+        is_bo-instid = CONV sibfboriid( lv_instid ).
+        is_bo-typeid = CONV sibftypeid( lv_typeid ).
+        is_bo-catid  = CONV sibfcatid( lv_catid ).
+
+        " получаем бизнес-объект
+        CALL FUNCTION 'CRM_KW_CONVERT_BO_FOR_AL'
+          EXPORTING
+            is_business_object = is_bo
+          IMPORTING
+            es_business_object = ls_bo.
+        lv_object_id  = CONV saeanwdid( ls_bo-instid ).
+        lv_sap_object = CONV saeobjid( ls_bo-typeid ).
+
+        " получаем все документы привязанные к бизнес-обьекту
+        zcl_alink_connection_cust=>get_custom_data_bo(
+          EXPORTING
+            iv_sap_object = lv_sap_object  " SAP ArchiveLink: тип бизнес-объекта
+            iv_object_id  = lv_object_id   " SAP ArchiveLink: идентификатор объекта
+          IMPORTING
+            et_result     = lt_result      " Таблица соединений SAP ArchiveLink (доп для TOA01 )
+        ).
+
+
+        lr_coll_wrapp ?= me->typed_context->doclist->get_collection_wrapper( ).
+
+        lr_doclist ?= lr_coll_wrapp->get_first( ).
+        WHILE lr_doclist IS BOUND.
+          " для каждого документа получаем ключ и сравниваем с данными из таблицы результатов
+          DATA(lv_doc_key) = lr_doclist->get_property_as_string('DOC_KEY').
+
+          " ARC_DOC_ID
+          DATA(lv_arc_doc_id) = cl_crm_bsp_cm_control=>get_instance( NEW cl_crm_bsp_cm_access( ) )->get_al_docid( lv_doc_key ).
+
+          DATA(is_doc_bo) = cl_crm_bsp_cm_control=>get_instance( NEW cl_crm_bsp_cm_access( ) )->get_bo( lv_doc_key ).
+          " получаем бизнес-объект
+          CALL FUNCTION 'CRM_KW_CONVERT_BO_FOR_AL'
+            EXPORTING
+              is_business_object = is_doc_bo
+            IMPORTING
+              es_business_object = ls_doc_bo.
+          " SAP_OBJECT
+          DATA(lv_doc_sap_obj) = ls_doc_bo-typeid.
+          " OBJECT_ID
+          DATA(lv_doc_obj_id) = ls_doc_bo-instid.
+          " ARCHIV_ID
+          DATA(lv_bds_doc_type) = lr_doclist->get_property_as_string('BDS_DOCUMENTTYPE').
+          CALL FUNCTION 'ARCHIV_METAINFO_GET'
+            EXPORTING
+              ar_object  = CONV saeobjart( lv_bds_doc_type )
+              sap_object = CONV saeanwdid( lv_doc_sap_obj )
+            TABLES
+              toaom_fkt  = lt_ar_object
+            EXCEPTIONS
+              OTHERS     = 1.
+          IF lt_ar_object IS NOT INITIAL.
+            READ TABLE lt_ar_object ASSIGNING FIELD-SYMBOL(<lf_ar_object>) INDEX 1.
+            DATA(lv_archiv_id) = <lf_ar_object>-archiv_id.
+          ENDIF.
+          " если совпали ключи - проставляем значения
+          IF lv_arc_doc_id IS NOT INITIAL AND
+             lv_doc_sap_obj IS NOT INITIAL AND
+             lv_doc_obj_id IS NOT INITIAL AND
+             lv_archiv_id IS NOT INITIAL.
+            READ TABLE lt_result ASSIGNING FIELD-SYMBOL(<lf_result>) WITH KEY sap_object = lv_doc_sap_obj
+                                                                              object_id = lv_doc_obj_id
+                                                                              archiv_id = lv_archiv_id
+                                                                              arc_doc_id = lv_arc_doc_id.
+            IF sy-subrc = 0.
+              " ZCREATE_USER
+              lr_doclist->set_property(
+                EXPORTING
+                  iv_attr_name = 'ZCREATE_USER'
+                  iv_value = <lf_result>-create_user ).
+              " ZDESCRIPTION
+              lr_doclist->set_property(
+                EXPORTING
+                  iv_attr_name = 'ZDESCRIPTION'
+                  iv_value = <lf_result>-description ).
+              " ZCREATED_AT
+              lr_doclist->set_property(
+                EXPORTING
+                  iv_attr_name = 'ZCREATED_AT'
+                  iv_value = <lf_result>-created_at ).
+              " ZSYS_MARK
+              lr_doclist->set_property(
+                EXPORTING
+                  iv_attr_name = 'ZSYS_MARK'
+                  iv_value = <lf_result>-sys_mark ).
+            ENDIF.
+
+          ENDIF.
+
+          lr_doclist ?= lr_coll_wrapp->get_next( ).
+        ENDWHILE.
+
+      CATCH cx_root.
+    ENDTRY.
+  ENDMETHOD.
