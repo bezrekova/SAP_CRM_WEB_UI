@@ -1,0 +1,62 @@
+REPORT zb_set_random_mfo.
+
+*DATA: lt_ztd_mfo_codes TYPE TABLE OF ztd_mfo_codes,
+DATA:      lt_selected      TYPE TABLE OF ztd_mfo_codes.
+DATA:     ls_ztd_mfo_codes TYPE  ztd_mfo_codes.
+*      lv_text          TYPE string.
+
+SELECT * FROM ztd_mfo_codes INNER JOIN but000 ON ztd_mfo_codes~parent_id = but000~partner_guid AND but000~type = '1'
+  INTO TABLE @DATA(lt_ztd_mfo_codes).
+
+
+DATA(lv_counter) = 200000.
+
+LOOP AT lt_ztd_mfo_codes ASSIGNING FIELD-SYMBOL(<fs_mfo>).
+  lv_counter = lv_counter + 1.
+
+  ls_ztd_mfo_codes-object_id = <fs_mfo>-ztd_mfo_codes-object_id.
+  ls_ztd_mfo_codes-parent_id  = <fs_mfo>-ztd_mfo_codes-parent_id.
+  ls_ztd_mfo_codes-record_id = cl_system_uuid=>create_uuid_x16_static( ).
+  ls_ztd_mfo_codes-zzcode_nci = lv_counter.
+  ls_ztd_mfo_codes-zzmfocode = '1041'.
+  APPEND  ls_ztd_mfo_codes TO lt_selected.
+
+  lv_counter = lv_counter + 1.
+
+  ls_ztd_mfo_codes-object_id = <fs_mfo>-ztd_mfo_codes-object_id.
+  ls_ztd_mfo_codes-parent_id  = <fs_mfo>-ztd_mfo_codes-parent_id.
+  ls_ztd_mfo_codes-record_id = cl_system_uuid=>create_uuid_x16_static( ).
+  ls_ztd_mfo_codes-zzcode_nci = lv_counter.
+  ls_ztd_mfo_codes-zzmfocode = '1041'.
+  APPEND  ls_ztd_mfo_codes TO lt_selected.
+ENDLOOP.
+
+
+*DATA(lv_size)  = lines( lt_selected ) * 2.
+*
+*LOOP AT lt_selected ASSIGNING FIELD-SYMBOL(<fs_sel>) .
+*  CHECK  lines( lt_selected ) < lv_size.
+*  DO 2 TIMES.
+*    ls_ztd_mfo_codes-client = <fs_sel>-client.
+*    ls_ztd_mfo_codes-object_id = <fs_sel>-object_id.
+*    ls_ztd_mfo_codes-parent_id  = <fs_sel>-parent_id.
+*    ls_ztd_mfo_codes-record_id = <fs_sel>-record_id.
+*    ls_ztd_mfo_codes-zzcode_nci =  CONV zdt_nci( lr_rand->get_next( ) ).
+*    ls_ztd_mfo_codes-zzmfocode = <fs_sel>-zzmfocode.
+*    APPEND  ls_ztd_mfo_codes TO lt_selected.
+*  ENDDO.
+*
+*ENDLOOP.
+*cl_demo_output=>display_data( lt_selected ).
+*
+*MOVE-CORRESPONDING lt_selected TO lt_ztd_mfo_codes KEEPING TARGET LINES.
+*
+*cl_demo_output=>display_data( lt_ztd_mfo_codes ).
+TRY.
+    MODIFY  ztd_mfo_codes FROM TABLE lt_selected.
+    COMMIT WORK.
+*  CATCH  cx_root INTO DATA(oref_4).
+*    lv_text = oref_4->get_text( ).
+*    WRITE / lv_text.
+*    ROLLBACK WORK.
+ENDTRY.
