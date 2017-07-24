@@ -1,0 +1,38 @@
+METHOD GET_P_ZZHMEMTYPE.
+
+  CASE iv_property.
+    WHEN if_bsp_wd_model_setter_getter=>fp_fieldtype.
+     rv_value = cl_bsp_dlc_view_descriptor=>field_type_picklist.
+
+    "WHEN IF_BSP_WD_MODEL_SETTER_GETTER=>...
+      "...
+  ENDCASE.
+
+ENDMETHOD.
+
+METHOD get_v_zzhmemtype.
+
+  DATA:lt_ddlb TYPE bsp_wd_dropdown_table,
+       ls_ddlb TYPE bsp_wd_dropdown_line.
+*GR_DDLB_DEL_BLOCK	Instance Attribute	Protected	Type Ref To	CL_CRM_UIU_DDLB	provide drop down list box  for view field
+
+  IF gr_ddlb_del_block IS NOT BOUND.
+    CREATE OBJECT gr_ddlb_del_block
+      EXPORTING
+        iv_source_type = if_bsp_wd_valuehelp_pldescr=>source_type_table.
+
+*   Get values for delivery block reasons
+    SELECT * FROM ztx_hmemtype INTO TABLE @DATA(lt_text) .
+    LOOP AT lt_text INTO DATA(ls_text).
+      ls_ddlb-key = ls_text-membership.
+      ls_ddlb-value = ls_text-description.
+      APPEND ls_ddlb to lt_ddlb.
+    ENDLOOP.
+    IF sy-subrc = 0.
+*      APPEND INITIAL LINE TO lt_ddlb.
+      gr_ddlb_del_block->set_selection_table( it_selection_table = lt_ddlb ).
+    ENDIF.
+  ENDIF.
+  rv_valuehelp_descriptor = gr_ddlb_del_block.
+ENDMETHOD.
+
