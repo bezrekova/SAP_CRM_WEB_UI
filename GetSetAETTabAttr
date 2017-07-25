@@ -1,0 +1,246 @@
+class ZCL_ZTD_REAL_ESTATE_EXT definition
+  public
+  final
+  create public .
+
+public section.
+
+  types:
+    gtt_attr_x TYPE TABLE OF ztd_real_estate_x .
+
+  constants GV_AXT_TABLE_ID type AXT_TABLE_ID value 'ZTD_REAL_ESTATE' ##NO_TEXT.
+
+  class-methods CLASS_CONSTRUCTOR .
+  class-methods GET_DATA
+    importing
+      !IV_PARTNER type BU_PARTNER
+    exporting
+      !ET_REAL_ESTATE type ZTD_REAL_ESTATE_ATTR_T .
+  class-methods SET_DATA
+    importing
+      !IV_PARTNER type BU_PARTNER
+      !IV_SAVE type BOOLEAN default ABAP_TRUE
+      !IT_DATA type ZTD_REAL_ESTATE_ATTR_T
+      !IT_DATA_X type GTT_ATTR_X optional
+    exporting
+      !EV_ERROR type STRING
+    returning
+      value(EV_RESULT) type BOOLEAN .
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+
+    DATA gr_api_instance TYPE REF TO cl_axt_tables_api .
+
+    CLASS-METHODS get_partner_guid
+      IMPORTING
+        !iv_partner            TYPE bu_partner
+      RETURNING
+        VALUE(ev_partner_guid) TYPE bu_partner_guid .
+    CLASS-METHODS get_changed_fields
+      IMPORTING
+        !is_data_x               TYPE ztd_real_estate_x
+      RETURNING
+        VALUE(et_changed_fields) TYPE ttfieldname .
+ENDCLASS.
+
+
+
+CLASS ZCL_ZTD_REAL_ESTATE_EXT IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_ZTD_REAL_ESTATE_EXT=>CLASS_CONSTRUCTOR
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD class_constructor.
+
+    TRY.
+        DATA(lr_api_instance) = cl_axt_tables_api=>create_api_instance( iv_table_id = gv_axt_table_id ).
+        lr_api_instance->initialize( ).
+      CATCH cx_root.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Private Method ZCL_ZTD_REAL_ESTATE_EXT=>GET_CHANGED_FIELDS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_DATA_X                      TYPE        ZTD_REAL_ESTATE_X
+* | [<-()] ET_CHANGED_FIELDS              TYPE        TTFIELDNAME
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_changed_fields.
+
+    DATA: lt_fields TYPE ttfieldname.
+
+    CALL FUNCTION 'ZFM_DEFINE_STRUCT_FIELDS'
+      EXPORTING
+        is_structure = is_data_x
+      IMPORTING
+        et_fields    = lt_fields.
+
+    LOOP AT lt_fields ASSIGNING FIELD-SYMBOL(<field_name>).
+      ASSIGN COMPONENT <field_name> OF STRUCTURE is_data_x TO FIELD-SYMBOL(<is>).
+      CHECK sy-subrc = 0.
+
+      IF <is> = abap_true.
+        APPEND <field_name> TO et_changed_fields.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_ZTD_REAL_ESTATE_EXT=>GET_DATA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [<---] ET_REAL_ESTATE                 TYPE        ZTD_REAL_ESTATE_ATTR_T
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_data.
+    DATA: ls_data      TYPE  ztd_real_estate_attr,
+          lt_record_id TYPE TABLE OF axt_record_id.
+
+    TRY.
+        DATA(lv_partner_guid) = get_partner_guid( iv_partner ).
+
+        DATA(lr_api_instance) = cl_axt_tables_api=>create_api_instance( iv_table_id = gv_axt_table_id ).
+
+
+        lr_api_instance->get_list(
+          EXPORTING
+            iv_parent_id      = lv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        LOOP AT lt_record_id ASSIGNING FIELD-SYMBOL(<record>).
+
+          lr_api_instance->get_detail(
+            EXPORTING
+              iv_record_id          = <record>
+            IMPORTING
+              es_attr               = ls_data
+          ).
+
+          INSERT ls_data INTO TABLE et_real_estate.
+        ENDLOOP.
+
+      CATCH cx_root.
+    ENDTRY.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Private Method ZCL_ZTD_REAL_ESTATE_EXT=>GET_PARTNER_GUID
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [<-()] EV_PARTNER_GUID                TYPE        BU_PARTNER_GUID
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_partner_guid.
+
+    CALL FUNCTION 'BUPA_NUMBERS_GET'
+      EXPORTING
+        iv_partner      = iv_partner
+      IMPORTING
+        ev_partner_guid = ev_partner_guid.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method ZCL_ZTD_REAL_ESTATE_EXT=>SET_DATA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PARTNER                     TYPE        BU_PARTNER
+* | [--->] IV_SAVE                        TYPE        BOOLEAN (default =ABAP_TRUE)
+* | [--->] IT_DATA                        TYPE        ZTD_REAL_ESTATE_ATTR_T
+* | [--->] IT_DATA_X                      TYPE        GTT_ATTR_X(optional)
+* | [<---] EV_ERROR                       TYPE        STRING
+* | [<-()] EV_RESULT                      TYPE        BOOLEAN
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD set_data.
+
+    DATA: lt_work_tab  TYPE ztd_real_estate_work_t,
+          ls_work      TYPE ztd_real_estate_work,
+          lv_record_id TYPE  axt_record_id,
+          ls_data	     TYPE ztd_real_estate_attr,
+          ls_data_x	   TYPE ztd_real_estate_x
+          .
+    DATA: lt_record_id TYPE TABLE OF axt_record_id.
+
+    ev_result = abap_true.
+
+    TRY.
+        DATA(lr_axt_api) = cl_axt_tables_api=>create_api_instance( iv_table_id = gv_axt_table_id ).
+*        lr_axt_api->initialize( ).
+        DATA(lv_partner_guid) = get_partner_guid( iv_partner ).
+
+
+        lr_axt_api->get_list(
+          EXPORTING
+            iv_parent_id      = lv_partner_guid
+          IMPORTING
+            et_record_id      = lt_record_id
+        ).
+
+        LOOP AT lt_record_id ASSIGNING FIELD-SYMBOL(<record>)."actual records
+
+          lr_axt_api->get_detail(
+          EXPORTING
+            iv_record_id          = <record>
+          IMPORTING
+            es_work               = ls_work
+        ).
+          TRANSLATE ls_work-zzlocation TO UPPER CASE.
+
+          INSERT ls_work INTO TABLE lt_work_tab.
+        ENDLOOP.
+
+        LOOP AT it_data INTO DATA(is_data).
+          DATA(lv_index) = sy-tabix.
+          DATA(lv_location_up) = is_data-zzlocation." don't take case into consideration
+          TRANSLATE lv_location_up TO UPPER CASE.
+
+          lv_record_id = VALUE #( lt_work_tab[  zzreal_estate = is_data-zzreal_estate
+          zzlocation = lv_location_up
+          zzsquare_real = is_data-zzsquare_real ]-record_id OPTIONAL ).
+
+          IF lv_record_id IS NOT INITIAL.
+            READ TABLE it_data_x INTO DATA(is_data_x) INDEX lv_index.
+            lr_axt_api->change(
+              EXPORTING
+                iv_record_id        = lv_record_id
+                is_data             = is_data
+                it_changed_fields   = get_changed_fields( is_data_x )
+            ).
+          ELSE.
+            lr_axt_api->create(
+              EXPORTING
+                iv_object_id        = lv_partner_guid
+                iv_parent_id        = lv_partner_guid
+                iv_record_id        = cl_system_uuid=>create_uuid_x16_static( )
+                is_data             = is_data
+                iv_restrictive_mode = abap_true
+*              iv_not_exists       = abap_true
+            ).
+
+          ENDIF.
+        ENDLOOP.
+
+        IF iv_save = abap_true.
+          lr_axt_api->save( ).
+        ENDIF.
+
+        lr_axt_api->buffer_subscribe_for_refresh( ).
+
+      CATCH cx_root INTO DATA(lr_root).
+        CALL METHOD lr_root->if_message~get_text
+          RECEIVING
+            result = ev_error.
+
+        ev_result = abap_false.
+    ENDTRY.
+
+  ENDMETHOD.
+ENDCLASS.
