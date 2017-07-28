@@ -1,0 +1,51 @@
+METHOD op_selbank.
+* Added by wizard: Outbound plug 'SELBANK'
+    DATA(lv_title) = cl_wd_utilities=>get_otr_text_by_alias( 'CRM_UIU_BT/PARTNER_SEARCH' ).
+    IF gr_bpsearch_account_popup IS NOT BOUND.
+      gr_bpsearch_account_popup = comp_controller->window_manager->create_popup(
+          iv_interface_view_name = 'SearchHelpWindow'       "#EC NOTEXT
+          iv_usage_name = 'CUBPSearchAccount'
+          iv_title = lv_title ).
+    ENDIF.
+
+* set display mode
+    gr_bpsearch_account_popup->set_display_mode( if_bsp_wd_popup=>c_display_mode_surrounded ).
+* Role dependand Event
+    gr_bpsearch_account_popup->set_on_close_event( iv_view = me iv_event_name = 'SELBANK' ).
+* Open the popup
+    gr_bpsearch_account_popup->open( iv_inbound_plug = 'CLEAR_ALL' ).
+
+    DATA(lr_cnode) = gr_bpsearch_account_popup->get_context_node( iv_cnode_name = 'SEARCH' ).
+    CHECK lr_cnode IS BOUND.
+
+    DATA(lr_dquery) = CAST cl_crm_bol_dquery_service( lr_cnode->collection_wrapper->get_current( ) ).
+    CHECK lr_dquery IS BOUND.
+
+    DATA(lv_selection_params) = lr_dquery->get_selection_params( ).
+    DATA(lr_iterator) = lv_selection_params->get_iterator( ).
+
+    DATA(lr_selection_param) = lr_iterator->find_by_property( iv_attr_name = 'ATTR_NAME' iv_value = 'CATEGORY' ).
+    IF lr_selection_param IS BOUND.
+      IF lr_selection_param->get_property_as_string( 'LOW' ) <> '2'.
+        lr_selection_param->set_property_as_string( iv_attr_name = 'LOW' iv_value = '2' ).
+      ENDIF.
+    ELSE.
+      lr_dquery->add_selection_param( EXPORTING iv_attr_name = 'CATEGORY'
+                                                iv_sign      = 'I'
+                                                iv_option    = 'EQ'
+                                                iv_low       = '2' ).
+    ENDIF.
+
+    lr_selection_param = lr_iterator->find_by_property( iv_attr_name = 'ATTR_NAME' iv_value = 'ZZTYPE_KL' ).
+    IF lr_selection_param IS BOUND.
+      IF lr_selection_param->get_property_as_string( 'LOW' ) <> '07'.
+        lr_selection_param->set_property_as_string( iv_attr_name = 'LOW' iv_value = '07' ).
+      ENDIF.
+    ELSE.
+      lr_dquery->add_selection_param( EXPORTING iv_attr_name = 'ZZTYPE_KL'
+                                                iv_sign      = 'I'
+                                                iv_option    = 'EQ'
+                                                iv_low       = '07' ).
+    ENDIF.
+
+  ENDMETHOD.
