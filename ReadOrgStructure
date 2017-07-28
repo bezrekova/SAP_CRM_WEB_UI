@@ -1,0 +1,12 @@
+*Читаем дерево орг стр. пользователя
+      CALL FUNCTION 'RH_STRUC_GET'
+        EXPORTING
+          act_otype      = zmd_cl_uienh_util=>gc_otype_us "'US'
+          act_objid      = sy-uname
+          act_wegid      = zmd_cl_uienh_util=>gc_strat "'US_CP_OO'
+        TABLES
+          result_tab     = lt_result_tab
+        EXCEPTIONS
+          no_plvar_found = 1
+          no_entry_found = 2
+          OTHERS         = 3.
