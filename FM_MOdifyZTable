@@ -1,0 +1,26 @@
+FUNCTION zfm_ext_addr_modify.
+*"----------------------------------------------------------------------
+*"*"Функциональный модуль обновления:
+*"
+*"*"Локальный интерфейс:
+*"  IMPORTING
+*"     VALUE(IV_ADDRESS_GUID) TYPE  BU_ADDRESS_GUID_BAPI
+*"     VALUE(IS_EXT_ADDRESS) TYPE  ZST_CRMT_BUPA_IL_ADDRESS
+*"     VALUE(IV_WITH_COMMIT) TYPE  ABAP_BOOL DEFAULT 'X'
+*"----------------------------------------------------------------------
+
+  DATA: ls_ext_adrc TYPE ztd_address_ext.
+
+  CHECK: iv_address_guid IS NOT INITIAL.
+
+  MOVE-CORRESPONDING is_ext_address TO ls_ext_adrc.
+  ls_ext_adrc-address_guid = iv_address_guid.
+  MODIFY ztd_address_ext FROM ls_ext_adrc.
+
+  IF sy-subrc = 0 AND iv_with_commit = abap_true.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+  ENDIF.
+
+ENDFUNCTION.
