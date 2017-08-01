@@ -1,0 +1,10 @@
+*   read values from domain
+    CALL FUNCTION 'DD_DOMVALUES_GET'
+      EXPORTING
+        domname   = 'ZDM_TYPE_KL'
+        text      = 'X'
+        langu     = sy-langu
+      TABLES
+        dd07v_tab = lt_domvalues
+      EXCEPTIONS
+        OTHERS    = 0.
