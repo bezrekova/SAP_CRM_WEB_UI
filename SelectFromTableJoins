@@ -1,0 +1,21 @@
+ SELECT DISTINCT but000~partner         AS id_crm
+                      but000~name_last       AS last_name
+                      but000~name_first      AS first_name
+                      but000~namemiddle      AS middle_name
+                      but000~birthdt         AS birthdate
+                      but0id~type            AS doc_type
+                      but0id~idnumber        AS passport_number
+                      ztab00000b~zzblacklist AS blacklist
+                      ztab00000b~zzbl_date   AS blacklistdate
+        FROM but000
+        INNER JOIN but0id ON but000~partner = but0id~partner
+        INNER JOIN ztd_name4search ON but000~partner_guid = ztd_name4search~object_id
+        LEFT JOIN ztab00000b      ON but000~partner_guid = ztab00000b~object_id
+        INTO CORRESPONDING FIELDS OF TABLE lt_person_data
+        WHERE ztd_name4search~zzname_last  IN lr_name_last
+          AND ztd_name4search~zzname_first IN lr_name_first
+          AND ztd_name4search~zznamemiddle IN lr_middle_name
+          AND but000~birthdt               IN lr_birthdate
+          AND but000~type                  EQ '1'
+          AND but0id~type                  EQ ls_person-doc_type
+          AND but0id~idnumber              EQ ls_person-passport_number.
