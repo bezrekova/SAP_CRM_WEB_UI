@@ -1,0 +1,49 @@
+
+
+    TRY.
+        cl_crm_uiu_bp_tools=>set_entity_2_check(
+          EXPORTING
+            ir_entity = me->typed_context->builidnumber->collection_wrapper->get_current( )
+            iv_field  = ''
+        ).
+
+      CATCH cx_root.
+    ENDTRY.
+
+    CALL METHOD super->do_finish_input
+      EXPORTING
+        global_event    = global_event
+        global_messages = global_messages.
+
+
+    check_doc_field(
+      IMPORTING
+        et_messages = DATA(lt_messages)    " Сообщения об ошибках
+    ).
+
+
+    LOOP AT lt_messages ASSIGNING FIELD-SYMBOL(<msg>) WHERE type CA 'EAX'.
+      global_messages->add_message2(
+        EXPORTING
+          condition   = co_mandatory_field_empty
+          message     = <msg>-message
+          messagetype = 'E'
+          p1          = CONV string( <msg>-message_v1 )
+          p2          = CONV string( <msg>-message_v2 )
+          p3          = CONV string( <msg>-message_v3 )
+          p4          = CONV string( <msg>-message_v4 )
+      ).
+    ENDLOOP.
+
+   LOOP AT lt_messages ASSIGNING FIELD-SYMBOL(<msg_w>) WHERE type CA 'W'.
+      global_messages->add_message2(
+        EXPORTING
+          condition   = co_mandatory_field_empty
+          message     = <msg_w>-message
+          messagetype = 'W'
+          p1          = CONV string( <msg_w>-message_v1 )
+          p2          = CONV string( <msg_w>-message_v2 )
+          p3          = CONV string( <msg_w>-message_v3 )
+          p4          = CONV string( <msg_w>-message_v4 )
+      ).
+    ENDLOOP.
