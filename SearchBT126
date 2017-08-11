@@ -1,0 +1,138 @@
+METHOD get_dquery_definitions.
+
+
+    CALL METHOD super->get_dquery_definitions
+      RECEIVING
+        rt_result = rt_result.
+
+    READ TABLE rt_result WITH KEY field = 'PROCESS_TYPE' ASSIGNING FIELD-SYMBOL(<fs_result>).
+
+    IF sy-subrc = 0 AND <fs_result> IS ASSIGNED.
+
+      DATA(lt_ddlb) = <fs_result>-ddlb_options.
+
+      DELETE lt_ddlb WHERE key NP 'Z*'.
+      APPEND INITIAL LINE TO lt_ddlb.
+      SORT lt_ddlb ASCENDING.
+      <fs_result>-ddlb_options = lt_ddlb.
+
+    ENDIF.
+
+  ENDMETHOD.
+  
+  METHOD get_v_status_area.
+
+  DATA: lt_ddlb        TYPE             bsp_wd_dropdown_table,
+        lr_ddlb        TYPE REF TO cl_crm_uiu_ddlb,
+        lt_status_list TYPE crmt_status_list_tab.
+  DATA : lr_dyn_query TYPE REF TO cl_crm_bol_dquery_service.
+  DATA lr_col TYPE REF TO if_bol_bo_col.
+  DATA: lv_iterator TYPE REF TO if_bol_bo_col_iterator,
+        lv_param    TYPE REF TO if_bol_bo_property_access.
+
+  DATA: current TYPE REF TO if_bol_bo_property_access.
+
+  DATA: lr_qs    TYPE REF TO cl_crm_bol_dquery_service,
+        lr_compo TYPE REF TO cl_bt126s_a_bspwdcompone0_impl.
+  DATA: lr_cuco            TYPE REF TO cl_bt126s_a_apptsearchacc_impl,
+        lv_is_par_set      TYPE boolean,
+        lv_size            TYPE string,
+        lr_qs_col          TYPE REF TO if_bol_bo_col,
+        lr_param_ent       TYPE REF TO if_bol_bo_property_access,
+        ls_param           TYPE bsp_dcls_advsrch_sel_db,
+        lt_prefilled_param TYPE string_table,
+        lt_pref_param_done TYPE string_table,
+        lv_prefilled_param TYPE string.
+  DATA: ls_selection          TYPE   genilt_selection_parameter.
+
+  TRY.
+      lr_qs ?= collection_wrapper->get_current( ).
+      lr_qs_col    ?= lr_qs->get_selection_params( ).
+      lr_param_ent = lr_qs_col->get_first( ).
+      WHILE lr_param_ent IS BOUND.
+        lr_param_ent->get_properties(
+          IMPORTING
+            es_attributes = ls_selection
+        ).
+        IF ls_selection-attr_name = 'PROCESS_TYPE'
+          AND ls_selection-low IS NOT INITIAL.
+          gv_process_type = CONV crmt_process_type( ls_selection-low ).
+        ENDIF.
+        lr_param_ent = lr_qs_col->get_next( ).
+      ENDWHILE.
+    CATCH cx_root.
+  ENDTRY.
+
+  TRY.
+      CASE gv_process_type.
+        WHEN zif_bt_proc_types_const=>inf.
+          CALL METHOD cl_crm_q1o_status=>get_status_by_description
+            EXPORTING
+              iv_ui_object_type = 'BT110_ACT'
+            IMPORTING
+              et_status_list    = lt_status_list.
+
+          DELETE lt_status_list WHERE user_stat_proc <> CONV crm_j_status( zif_bt_proc_types_const=>inf ) . "AND user_stat_proc <> 'CRMOPPCP'. " AND user_stat_proc <> 'ZINF'.
+
+          APPEND INITIAL LINE TO lt_ddlb ASSIGNING FIELD-SYMBOL(<fs_ddlb>).
+          IF sy-subrc = 0.
+            <fs_ddlb>-key = 'E0001'.
+            <fs_ddlb>-value = 'Открыто'.
+          ENDIF.
+
+          DELETE ADJACENT DUPLICATES FROM  lt_ddlb.
+          APPEND INITIAL LINE TO lt_ddlb ASSIGNING <fs_ddlb>.
+
+          LOOP AT lt_status_list ASSIGNING FIELD-SYMBOL(<fs_status>) .
+            APPEND INITIAL LINE TO lt_ddlb ASSIGNING <fs_ddlb>.
+            <fs_ddlb>-key = <fs_status>-status.
+            <fs_ddlb>-value = <fs_status>-text.
+          ENDLOOP.
+
+          SORT lt_ddlb BY key ASCENDING.
+
+          IF NOT lr_ddlb IS BOUND.
+            CREATE OBJECT lr_ddlb EXPORTING iv_source_type = 'T'.
+          ENDIF.
+          lr_ddlb->set_selection_table( it_selection_table = lt_ddlb ).
+
+          rv_valuehelp_descriptor = lr_ddlb.
+        WHEN OTHERS.
+
+          CALL METHOD cl_crm_q1o_status=>get_status_by_description
+            EXPORTING
+              iv_ui_object_type = 'BT111_OPPT'
+            IMPORTING
+              et_status_list    = lt_status_list.
+
+          DELETE lt_status_list WHERE user_stat_proc <> 'ZL01' . "AND user_stat_proc <> 'CRMOPPCP'. " AND user_stat_proc <> 'ZINF'.
+
+          APPEND INITIAL LINE TO lt_ddlb ASSIGNING FIELD-SYMBOL(<fs_ddlb1>).
+          IF sy-subrc = 0.
+            <fs_ddlb1>-key = 'E0001'.
+            <fs_ddlb1>-value = 'Открыто'.
+          ENDIF.
+
+          DELETE ADJACENT DUPLICATES FROM  lt_ddlb.
+
+          APPEND INITIAL LINE TO lt_ddlb ASSIGNING <fs_ddlb1>.
+
+          LOOP AT lt_status_list ASSIGNING FIELD-SYMBOL(<fs_status1>) .
+            APPEND INITIAL LINE TO lt_ddlb ASSIGNING <fs_ddlb1>.
+            <fs_ddlb1>-key = <fs_status1>-status.
+            <fs_ddlb1>-value = <fs_status1>-text.
+
+          ENDLOOP.
+
+          SORT lt_ddlb BY key ASCENDING.
+
+          IF NOT lr_ddlb IS BOUND.
+            CREATE OBJECT lr_ddlb EXPORTING iv_source_type = 'T'.
+          ENDIF.
+          lr_ddlb->set_selection_table( it_selection_table = lt_ddlb ).
+
+          rv_valuehelp_descriptor = lr_ddlb.
+      ENDCASE.
+    CATCH cx_root.
+  ENDTRY.
+ENDMETHOD.
