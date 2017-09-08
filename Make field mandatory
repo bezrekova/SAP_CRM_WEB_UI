@@ -1,0 +1,29 @@
+METHOD get_p_zzinn.
+
+  CASE iv_property.
+    WHEN if_bsp_wd_model_setter_getter~fp_input_mandatory.
+
+      rv_value = abap_true.
+
+      TRY.
+          DATA(lr_ent) = CAST cl_crm_bol_entity( collection_wrapper->get_current( ) ).
+
+          IF lr_ent->get_property_as_string( 'BP_CATEGORY' ) <> 2.
+            rv_value = abap_false.
+            RETURN.
+          ENDIF.
+
+          lr_ent = lr_ent->get_related_entity( 'ZEXT_BOL_RELAT000001' ).
+        CATCH cx_root.
+          RETURN.
+      ENDTRY.
+
+      CHECK lr_ent IS BOUND.
+
+      IF lr_ent->get_property_as_string( 'ZZTYPE_KL' ) = '07'. "#EC NOTEXT.
+        rv_value = abap_false.
+      ENDIF.
+
+  ENDCASE.
+
+ENDMETHOD.
