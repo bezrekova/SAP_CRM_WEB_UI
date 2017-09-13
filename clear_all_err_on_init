@@ -1,0 +1,63 @@
+  METHOD clear_all_err_on_init.
+
+    DATA: lr_msg_srv TYPE REF TO cl_bsp_wd_message_service.
+    DATA:  lr_msg_cont       TYPE REF TO cl_crm_genil_bapi_mess_cont.
+    FIELD-SYMBOLS <ft_result> TYPE  bsp_wd_message_tab.
+    DATA lt_col TYPE  bsp_wd_message_tab.
+
+    TRY.
+
+        TRY.
+            DATA(lr_header) = CAST cl_crm_bol_entity( me->typed_context->builheader->collection_wrapper->get_current( ) ).
+            lr_msg_cont ?= lr_header->get_message_container( ).
+
+            lr_msg_cont->get_messages(
+              EXPORTING
+                iv_message_type =  'A'   " All message
+              IMPORTING
+                et_messages     =   DATA(lt_messages2)  " Message Table
+            ).
+            lr_msg_cont->reset( ).
+          CATCH cx_root.
+        ENDTRY.
+
+        lr_msg_srv = cl_bsp_wd_message_service=>get_instance( ).
+        lr_msg_srv->get_messages(
+          EXPORTING
+            iv_msg_type             = if_genil_message_container=>mt_all    " Messages, Message Type
+*            iv_max_lines            =     " Max. Number of Returned Messages
+*            iv_delete_read_messages = ABAP_FALSE
+          RECEIVING
+            rv_result               =  DATA(lr_result)   " Table of Messages
+        ).
+        lr_msg_srv->delete_bsp_messages(
+        ).
+        lr_msg_srv->collect_messages(
+          EXPORTING
+            iv_message_type         =  'E'   " Messages, Message Type
+            iv_delete_read_messages = abap_true
+        ).
+
+        DATA(lr_core) = cl_crm_bol_core=>get_instance( ).
+        DATA(lr_mess_cont_manager)   = lr_core->get_message_cont_manager( ).
+        DATA lt_all_container   TYPE  crmt_genil_mess_cont_tab.
+        lr_mess_cont_manager->get_all_message_containers(
+          IMPORTING
+            et_result =  lt_all_container   " Table of Message Containers
+        ).
+
+        DATA(lr_global_message_cont) = lr_mess_cont_manager->get_global_message_cont( ).
+        lr_global_message_cont->if_genil_message_container~get_messages(
+          EXPORTING
+            iv_message_type =  'E'   " Messages, Message Type
+*    iv_for_display  = ABAP_FALSE    " Logical Variable
+          IMPORTING
+            et_messages     =  DATA(lt_globals)   " Message Table
+        ).
+        lr_mess_cont_manager->reset( ).
+        lr_global_message_cont->reset( ).
+
+      CATCH cx_root.
+    ENDTRY.
+
+  ENDMETHOD.
