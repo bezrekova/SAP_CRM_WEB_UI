@@ -1,0 +1,21 @@
+
+"create an instance of class implementing if_serializable_object
+DATA(lr_serializable_object) = NEW zcl_serialize_me( ).
+
+"set a value
+lr_serializable_object->set_my_attribute( im_attribute = 'Party hard' ).
+
+"serialize an instance into xstring
+*CALL TRANSFORMATION id SOURCE instance = lr_serializable_object RESULT XML DATA(lv_serilized_object).
+
+
+"json
+DATA(lr_writer) = cl_sxml_string_writer=>create(  type  =  if_sxml=>co_xt_json  ).
+
+CALL TRANSFORMATION id SOURCE instance = lr_serializable_object RESULT XML lr_writer.
+
+DATA(lv_serialized_obj) = lr_writer->get_output(   ).
+
+CALL TRANSFORMATION id SOURCE XML lv_serialized_obj RESULT  instance = lr_serializable_object .
+
+cl_demo_output=>new( )->write_text( lr_serializable_object->get_my_attribute( ) )->display( ).
