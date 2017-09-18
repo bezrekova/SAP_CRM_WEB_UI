@@ -1,0 +1,26 @@
+ METHOD en_onupdate.
+
+*    TRY.
+*"Кнопка Обновить
+*        DATA(lv_display_mode) = me->view_group_context->is_view_in_display_mode( me ).
+*
+*        CHECK lv_display_mode EQ abap_false.
+*
+*        DATA(lr_header) = CAST cl_crm_bol_entity( me->typed_context->builheader->collection_wrapper->get_current( ) ).
+*        CHECK lr_header IS BOUND.
+*        lr_header->reread( ).
+*        lr_header->retrieve_relations( ).
+*      CATCH cx_root.
+*    ENDTRY.
+    TRY.
+        DATA(lr_header) = CAST cl_crm_bol_entity( me->typed_context->builheader->collection_wrapper->get_current( ) ).
+        CHECK lr_header IS BOUND.
+        CHECK NOT lr_header->is_changeable( ).
+        DATA(lr_trx) = lr_header->get_transaction( ).
+        CHECK lr_trx IS BOUND.
+        lr_trx->revert( ) .
+        eh_oncancel( ).
+      CATCH cx_root.
+        RETURN.
+    ENDTRY.
+  ENDMETHOD.
