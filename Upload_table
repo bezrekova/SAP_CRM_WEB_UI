@@ -1,0 +1,111 @@
+*&---------------------------------------------------------------------*
+*& Report ZREP_MFO
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zrep_mfo.
+
+TYPES: BEGIN OF ls_ddic,
+         zzmfocode  TYPE zdt_mfo,
+         zzmfo_desc TYPE zdt_mfo_desc,
+       END OF ls_ddic.
+
+TYPES: BEGIN OF ls_ztc_mfo,
+         zzmfocode TYPE zdt_mfo,
+       END OF ls_ztc_mfo.
+
+DATA: lt_ztx_mfo_codes TYPE TABLE OF ztx_mfo_codes,
+      lt_mfo_codes     TYPE TABLE OF ls_ztc_mfo,
+      lt_ztc_mfo_codes TYPE TABLE OF ztc_mfo_codes,
+      lt_mfo_text      TYPE TABLE OF ls_ddic.
+
+DATA: lt_upload_data TYPE STANDARD TABLE OF ls_ddic,
+      lv_text, lv_path        TYPE string.
+
+
+lv_path = 'C:\Users\new\Desktop\MFO\mfo_dict.dat'.
+
+*general table
+PERFORM read_file_to_itab USING lv_path
+     CHANGING  lt_upload_data .
+
+
+*--------------------------------Fill ZTC* and ZTX*------------------------------------*
+
+lt_mfo_codes = CORRESPONDING #( lt_upload_data  MAPPING zzmfocode = zzmfocode   ).
+DELETE ADJACENT DUPLICATES FROM lt_mfo_codes.
+SORT lt_mfo_codes BY zzmfocode.
+cl_demo_output=>display( lt_mfo_codes ).
+MOVE-CORRESPONDING lt_mfo_codes TO lt_ztc_mfo_codes.
+cl_demo_output=>display( lt_ztc_mfo_codes ).
+
+lt_mfo_text = CORRESPONDING #( lt_upload_data  MAPPING zzmfocode = zzmfocode
+zzmfo_desc = zzmfo_desc  ).
+DELETE ADJACENT DUPLICATES FROM lt_mfo_text.
+SORT lt_mfo_text BY zzmfocode.
+cl_demo_output=>display( lt_mfo_text ).
+MOVE-CORRESPONDING lt_mfo_text TO lt_ztx_mfo_codes.
+cl_demo_output=>display( lt_ztx_mfo_codes ).
+
+TRY .
+*    DELETE FROM ztx_oked_sec_gr.
+*    DELETE FROM ztc_oked_sec_gr.
+*    COMMIT WORK.
+    INSERT ztc_mfo_codes FROM TABLE lt_ztc_mfo_codes.
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref).
+    lv_text = oref->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+ENDTRY.
+
+TRY   .
+    INSERT ztx_mfo_codes FROM TABLE lt_ztx_mfo_codes.
+    UPDATE ztx_mfo_codes SET lang = syst-langu.
+    COMMIT WORK.
+  CATCH  cx_root INTO DATA(oref1).
+    lv_text = oref1->get_text( ).
+    WRITE / lv_text.
+    ROLLBACK WORK.
+
+ENDTRY.
+
+
+*form to write manually path to file
+FORM read_file_to_itab
+  USING lv_path TYPE string
+  CHANGING  it_tab TYPE STANDARD TABLE.
+
+*Upload the file
+  CALL METHOD cl_gui_frontend_services=>gui_upload
+    EXPORTING
+      filename                = lv_path " file with .dat file extension required
+      filetype                = 'ASC'
+      has_field_separator     = 'X'
+    CHANGING
+      data_tab                = it_tab
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      not_supported_by_gui    = 17
+      error_no_gui            = 18
+      OTHERS                  = 19.
+  IF sy-subrc <> 0.
+    RAISE file_error.
+  ENDIF.
+
+ENDFORM.
