@@ -1,0 +1,49 @@
+*&---------------------------------------------------------------------*
+*& Report XXXX
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT XXXX.
+
+DATA: lt_head       TYPE STANDARD TABLE OF swkwlhead WITH HEADER LINE,
+      lv_returncode TYPE sy-subrc.
+
+CALL FUNCTION 'SWK_LOCAL_INBOX_GET'
+  EXPORTING
+    user_id            = 'XXXX'
+    user_langu         = sy-langu
+    read_otype         = 'US'
+*   read_objid         =
+*   read_task_name     =
+*   read_witext_in_langu =
+*   read_resubmission  = SPACE
+*   passive_substitution = SPACE
+*        IMPORTING
+*   e_saprl            =
+  TABLES
+    wi_list            = lt_head
+*   wi_status          =
+*   task_filter        =
+  EXCEPTIONS
+    user_cannot_get_wi = 1
+    OTHERS             = 2.
+IF sy-subrc <> 0.
+*       MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+ENDIF.
+
+LOOP AT lt_head ASSIGNING FIELD-SYMBOL(<fs_head>).
+  CALL FUNCTION 'SAP_WAPI_WORKITEM_DELETE'
+    EXPORTING
+      workitem_id       = <fs_head>-wi_id    " Work Item ID
+      actual_agent      = sy-uname    " Current User
+      language          = sy-langu    " SAP R/3 System, Current Language
+      check_final_state = ' '
+      do_commit         = 'X'    " Execute Commit
+    IMPORTING
+      return_code       = lv_returncode   " Return Value (0 - 2)
+*  TABLES
+*     message_lines     =     " Message Lines
+*     message_struct    =     " Message Structure
+    .
+ENDLOOP.
